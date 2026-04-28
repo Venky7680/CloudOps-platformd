@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="backend">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/CloudOps-Platform/aws_backend/backend.zip!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
