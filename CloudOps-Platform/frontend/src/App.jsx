@@ -174,22 +174,44 @@ const Spinner = ({ size = 20 }) => (
 );
 
 // ── Landing Page ───────────────────────────────────────────────────────────────
-const LandingPage = ({ onLogin, onRegister }) => {
+const LandingPage = ({ onLogin, onRegister, activePage, handleLogin, handleRegister, setPage }) => {
     const features = [
-        { icon: "🔍", title: "Scan AWS Resources", desc: "EC2, Lambda, RDS, S3, VPC, CloudWatch and more across all regions" },
-        { icon: "🔔", title: "Real-time Alerts", desc: "Get notified instantly when CloudWatch alarms trigger in your account" },
+        { icon: "🔍", title: "Scan Cloud Resources", desc: "Compute, Storage, Databases, Networking and more across all regions and providers" },
+        { icon: "🔔", title: "Real-time Alerts", desc: "Get notified instantly when alarms trigger across your cloud accounts" },
         { icon: "🎫", title: "Ticket Management", desc: "Auto-create tickets for High and Critical alerts, track and resolve them" },
         { icon: "📊", title: "Dashboard & Charts", desc: "Visualize your cloud operations with beautiful charts and summaries" },
     ];
 
     const steps = [
         { number: "1", title: "Register", desc: "Create your CloudOps account in seconds" },
-        { number: "2", title: "Connect AWS", desc: "Add your AWS access keys securely" },
+        { number: "2", title: "Connect Cloud", desc: "Add your AWS, GCP or Azure credentials securely" },
         { number: "3", title: "Scan & Monitor", desc: "Scan resources and monitor alerts in real time" },
     ];
 
     return (
         <div style={{ minHeight: "100vh", background: "var(--bg)", fontFamily: "var(--font)" }}>
+
+            {/* Login Modal Overlay */}
+            {activePage === "login" && (
+                <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}
+                     onClick={(e) => { if (e.target === e.currentTarget) setPage("landing"); }}
+                >
+                    <div onClick={e => e.stopPropagation()}>
+                        <LoginPage onLogin={handleLogin} onRegister={() => setPage("register")} />
+                    </div>
+                </div>
+            )}
+
+            {/* Register Modal Overlay */}
+            {activePage === "register" && (
+                <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}
+                     onClick={(e) => { if (e.target === e.currentTarget) setPage("landing"); }}
+                >
+                    <div onClick={e => e.stopPropagation()}>
+                        <RegisterPage onRegister={handleRegister} onBack={() => setPage("login")} />
+                    </div>
+                </div>
+            )}
 
             {/* Navbar */}
             <div style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)", padding: "0 40px", height: 60, display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 }}>
@@ -210,13 +232,13 @@ const LandingPage = ({ onLogin, onRegister }) => {
             {/* Hero */}
             <div style={{ textAlign: "center", padding: "80px 24px 60px" }}>
                 <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "var(--accent-bg)", border: "1px solid var(--accent)", borderRadius: 20, padding: "4px 14px", fontSize: 12, fontWeight: 600, color: "var(--accent)", marginBottom: 24 }}>
-                    ☁ AWS Cloud Management Platform
+                    ☁ Multi-Cloud Management Platform
                 </div>
                 <h1 style={{ fontSize: 48, fontWeight: 800, letterSpacing: "-0.04em", color: "var(--text)", marginBottom: 16, lineHeight: 1.15 }}>
-                    Monitor your AWS<br />infrastructure in one place
+                    Monitor your cloud<br />infrastructure in one place
                 </h1>
                 <p style={{ fontSize: 16, color: "var(--text2)", maxWidth: 520, margin: "0 auto 36px", lineHeight: 1.7 }}>
-                    Scan resources, track alerts, manage tickets and visualize your cloud operations — all from a single dashboard.
+                    Connect AWS, GCP or Azure. Scan resources, track alerts, manage tickets and visualize your cloud operations — all from a single dashboard.
                 </p>
                 <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
                     <button onClick={onRegister} className="btn-primary" style={{ width: "auto", padding: "12px 32px", marginTop: 0, fontSize: 15 }}>
@@ -232,7 +254,7 @@ const LandingPage = ({ onLogin, onRegister }) => {
             <div style={{ padding: "40px 40px 60px", maxWidth: 1000, margin: "0 auto" }}>
                 <div style={{ textAlign: "center", marginBottom: 40 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Features</div>
-                    <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.03em" }}>Everything you need to manage AWS</div>
+                    <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.03em" }}>Everything you need to manage your cloud</div>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 20 }}>
                     {features.map((f) => (
@@ -323,7 +345,7 @@ const LoginPage = ({ onLogin, onRegister }) => {
     };
 
     return (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "var(--bg)" }}>
+        <div>
             <div style={{
                 background: "var(--surface)", border: "1px solid var(--border)",
                 borderRadius: 20, padding: 48, width: "100%", maxWidth: 440,
@@ -430,7 +452,7 @@ const RegisterPage = ({ onRegister, onBack }) => {
     };
 
     return (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "var(--bg)" }}>
+        <div>
             <div style={{
                 background: "var(--surface)", border: "1px solid var(--border)",
                 borderRadius: 20, padding: 48, width: "100%", maxWidth: 440,
@@ -2465,11 +2487,42 @@ const getNavItems = (cloud) => {
 };
 
 
-const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, initialSection, onNewScan, onSwitchCloud, onSignOut, onScanRegions }) => {
+const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, initialSection, onNewScan, onSwitchCloud, onSignOut, onScanRegions, onSetSelectedCloud, onClearData }) => {
     const [section, setSection] = useState(() => {
         return localStorage.getItem('cloudops-section') || "overview";
     });
     const [appSection, setAppSection] = useState(initialSection || "main");
+    const [sectionHistory, setSectionHistory] = useState([]);
+
+    const navigateTo = (newSection) => {
+        setSectionHistory(prev => [...prev, appSection]);
+        setAppSection(newSection);
+        window.history.pushState({ section: newSection }, "", `#${newSection}`);
+    };
+
+    const navigateBack = () => {
+        if (sectionHistory.length > 0) {
+            const previousSection = sectionHistory[sectionHistory.length - 1];
+            setSectionHistory(history => history.slice(0, -1));
+            setAppSection(previousSection);
+            window.history.pushState({ section: previousSection }, "", `#${previousSection}`);
+        } else {
+            setAppSection("main");
+            window.history.pushState({ section: "main" }, "", "#main");
+        }
+    };
+
+    useEffect(() => {
+        const handlePopState = (event) => {
+            if (event.state?.section) {
+                setAppSection(event.state.section);
+            } else {
+                setAppSection("main");
+            }
+        };
+        window.addEventListener("popstate", handlePopState);
+        return () => window.removeEventListener("popstate", handlePopState);
+    }, []);
 
     useEffect(() => {
         if (initialSection && initialSection !== "main") {
@@ -2507,9 +2560,26 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
 
     const renderContent = () => {
         // Inner app pages
-        if (appSection === "editCredentials") return <EditCredentialsPage userEmail={userEmail} onSave={() => setAppSection("main")} onBack={() => setAppSection("main")} />;
-        if (appSection === "setupGuide") return <SetupGuidePage onContinue={() => setAppSection("scan")} onBack={() => setAppSection("main")} />;
-        if (appSection === "scan") return <ScanForm onCredentialsSaved={() => setAppSection("accountSelection")} />;
+        if (appSection === "cloudSelect") return <CloudSelectPage
+            onSelectCloud={(cloud) => {
+                if (cloud === "aws") {
+                    onClearData();
+                    onSetSelectedCloud("aws");
+                    navigateTo("accountSelection");
+                }
+            }}
+            onBack={() => {
+                if (accountId) {
+                    onSetSelectedCloud("aws");
+                }
+                navigateBack();
+            }}
+            onSignOut={onSignOut}
+            userEmail={userEmail}
+        />;
+        if (appSection === "editCredentials") return <EditCredentialsPage userEmail={userEmail} onSave={navigateBack} onBack={navigateBack} />;
+        if (appSection === "setupGuide") return <SetupGuidePage onContinue={() => navigateTo("scan")} onBack={navigateBack} />;
+        if (appSection === "scan") return <ScanForm onCredentialsSaved={() => navigateTo("accountSelection")} />;
         if (appSection === "accountSelection") return <AccountSelectionPage
             onSelectAccount={async (acc) => {
                 const email = localStorage.getItem('cloudops-userEmail');
@@ -2530,14 +2600,18 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
                 } catch (e) {
                     console.error("Failed to fetch account credentials:", e);
                 }
-                setAppSection("regionSelection");
+                navigateTo("regionSelection");
             }}
-            onAddNew={() => setAppSection("setupGuide")}
-            onBack={() => setAppSection("main")}
+            onAddNew={() => navigateTo("setupGuide")}
+            onBack={navigateBack}
         />;
         if (appSection === "regionSelection") return <RegionSelectionPage
-            onScanRegions={onScanRegions}
-            onBack={() => setAppSection("main")}
+            onScanRegions={async (regions) => {
+                await onScanRegions(regions);
+                setAppSection("main");
+                setSection("overview");
+            }}
+            onBack={navigateBack}
             userEmail={userEmail}
         />;
 
@@ -2553,9 +2627,9 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
                     <button
                         className="btn-primary"
                         style={{ width: "auto", padding: "10px 24px", marginTop: 8 }}
-                        onClick={() => setAppSection("accountSelection")}
+                        onClick={() => navigateTo("cloudSelect")}
                     >
-                        Connect Cloud Provider →
+                        Select Your Cloud →
                     </button>
                 </div>
             );
@@ -2610,7 +2684,12 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
                             <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em", padding: "12px 8px 6px" }}>{sectionName}</div>
                             {NAV_ITEMS.filter((n) => n.section === sectionName).map((nav) => (
                                 <button key={nav.id}
-                                        onClick={() => { setSection(nav.id); localStorage.setItem('cloudops-section', nav.id); }}
+                                        onClick={() => {
+                                            setSection(nav.id);
+                                            localStorage.setItem('cloudops-section', nav.id);
+                                            setAppSection("main");
+                                            setSectionHistory([]);
+                                        }}
                                         style={{
                                             display: "flex", alignItems: "center", gap: 8,
                                             padding: "8px 10px", borderRadius: 6, cursor: "pointer",
@@ -2660,7 +2739,7 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
 
                 <div style={{ padding: "8px 8px 0" }}>
                     <button
-                        onClick={() => setAppSection("editCredentials")}
+                        onClick={() => navigateTo("editCredentials")}
                         style={{
                             display: "flex", alignItems: "center", gap: 8,
                             padding: "8px 10px", borderRadius: 6, cursor: "pointer",
@@ -2677,9 +2756,9 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
                 </div>
 
                 <div style={{ padding: "12px 8px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 4 }}>
-                    <button onClick={onSwitchCloud} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 13, width: "100%", textAlign: "left", border: "none", background: "transparent", color: "var(--text2)", fontFamily: "inherit" }}
-                        onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    <button onClick={() => { onSwitchCloud(); navigateTo("cloudSelect"); }} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 13, width: "100%", textAlign: "left", border: "none", background: "transparent", color: "var(--text2)", fontFamily: "inherit" }}
+                            onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                     >
                         <span style={{ fontSize: 14, width: 18, textAlign: "center" }}>☁</span> Switch Provider
                     </button>
@@ -2695,7 +2774,7 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
             <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
                 <div style={{ height: 52, background: "var(--surface)", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", padding: "0 24px", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 50 }}>
                     <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: "-0.01em" }}>{sectionTitle}</span>
-                    <button className="btn btn-sm" onClick={() => { onNewScan(); setAppSection("regionSelection"); }}>↺ New Scan</button>
+                    <button className="btn btn-sm" onClick={() => { onNewScan(); navigateTo("regionSelection"); }}>↺ New Scan</button>
                 </div>
                 <div style={{ flex: 1, padding: 24, overflowY: "auto" }}>
                     {renderContent()}
@@ -2957,10 +3036,6 @@ export default function App() {
                     const aid = json.identity?.account_id || "";
                     setAccountId(aid);
                     localStorage.setItem('cloudops-accountId', aid);
-                    setAccountId(aid);
-                    localStorage.setItem('cloudops-accountId', aid);
-                    localStorage.setItem('cloudops-page', 'app');
-                    setPage("app");
                     return;
                 }
             }
@@ -3012,29 +3087,18 @@ export default function App() {
               ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
             `}</style>
 
-            {page === "landing" && <LandingPage onLogin={() => setPage("login")} onRegister={() => setPage("register")} />}
-
-            {page === "login" && <LoginPage onLogin={handleLogin} onRegister={() => setPage("register")} />}
-
-            {page === "register" && (
-                <RegisterPage onRegister={handleRegister} onBack={() => setPage("login")} />
-            )}
-
-            {page === "cloud" && (
-                <CloudSelectPage
-                    onSelectCloud={(cloud) => {
-                        if (cloud === "aws") {
-                            setSelectedCloud("aws");
-                            const isNewUser = localStorage.getItem('cloudops-isNewUser') === 'true';
-                            setCloudAppSection(isNewUser ? "setupGuide" : "accountSelection");
-                            setPage("app");
-                        }
-                    }}
-                    onBack={() => setPage("app")}
-                    onSignOut={handleLogout}
-                    userEmail={userEmail}
+            {(page === "landing" || page === "login" || page === "register") && (
+                <LandingPage
+                    onLogin={() => setPage("login")}
+                    onRegister={() => setPage("register")}
+                    activePage={page}
+                    handleLogin={handleLogin}
+                    handleRegister={handleRegister}
+                    setPage={setPage}
                 />
             )}
+
+
 
 
 
@@ -3055,17 +3119,17 @@ export default function App() {
                         localStorage.removeItem('cloudops-accountId');
                         localStorage.removeItem('cloudops-selectedCloud');
                     }}
-                    onSwitchCloud={() => {
-                        setSelectedCloud("");
+                    onSwitchCloud={() => {}}
+                    onSignOut={handleLogout}
+                    onSetSelectedCloud={setSelectedCloud}
+                    onClearData={() => {
                         setAwsData(null);
                         setScanMeta(null);
                         setAccountId("");
+                        setSelectedCloud("");
                         localStorage.removeItem('cloudops-accountId');
                         localStorage.removeItem('cloudops-selectedCloud');
-                        setCloudAppSection("main");
-                        setPage("cloud");
                     }}
-                    onSignOut={handleLogout}
                 />
             )}
         </>
