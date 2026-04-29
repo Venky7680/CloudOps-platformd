@@ -174,22 +174,44 @@ const Spinner = ({ size = 20 }) => (
 );
 
 // ── Landing Page ───────────────────────────────────────────────────────────────
-const LandingPage = ({ onLogin, onRegister }) => {
+const LandingPage = ({ onLogin, onRegister, activePage, handleLogin, handleRegister, setPage }) => {
     const features = [
-        { icon: "🔍", title: "Scan AWS Resources", desc: "EC2, Lambda, RDS, S3, VPC, CloudWatch and more across all regions" },
-        { icon: "🔔", title: "Real-time Alerts", desc: "Get notified instantly when CloudWatch alarms trigger in your account" },
+        { icon: "🔍", title: "Scan Cloud Resources", desc: "Compute, Storage, Databases, Networking and more across all regions and providers" },
+        { icon: "🔔", title: "Real-time Alerts", desc: "Get notified instantly when alarms trigger across your cloud accounts" },
         { icon: "🎫", title: "Ticket Management", desc: "Auto-create tickets for High and Critical alerts, track and resolve them" },
         { icon: "📊", title: "Dashboard & Charts", desc: "Visualize your cloud operations with beautiful charts and summaries" },
     ];
 
     const steps = [
         { number: "1", title: "Register", desc: "Create your CloudOps account in seconds" },
-        { number: "2", title: "Connect AWS", desc: "Add your AWS access keys securely" },
+        { number: "2", title: "Connect Cloud", desc: "Add your AWS, GCP or Azure credentials securely" },
         { number: "3", title: "Scan & Monitor", desc: "Scan resources and monitor alerts in real time" },
     ];
 
     return (
         <div style={{ minHeight: "100vh", background: "var(--bg)", fontFamily: "var(--font)" }}>
+
+            {/* Login Modal Overlay */}
+            {activePage === "login" && (
+                <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}
+                     onClick={(e) => { if (e.target === e.currentTarget) setPage("landing"); }}
+                >
+                    <div onClick={e => e.stopPropagation()}>
+                        <LoginPage onLogin={handleLogin} onRegister={() => setPage("register")} />
+                    </div>
+                </div>
+            )}
+
+            {/* Register Modal Overlay */}
+            {activePage === "register" && (
+                <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}
+                     onClick={(e) => { if (e.target === e.currentTarget) setPage("landing"); }}
+                >
+                    <div onClick={e => e.stopPropagation()}>
+                        <RegisterPage onRegister={handleRegister} onBack={() => setPage("login")} />
+                    </div>
+                </div>
+            )}
 
             {/* Navbar */}
             <div style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)", padding: "0 40px", height: 60, display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 }}>
@@ -210,13 +232,13 @@ const LandingPage = ({ onLogin, onRegister }) => {
             {/* Hero */}
             <div style={{ textAlign: "center", padding: "80px 24px 60px" }}>
                 <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "var(--accent-bg)", border: "1px solid var(--accent)", borderRadius: 20, padding: "4px 14px", fontSize: 12, fontWeight: 600, color: "var(--accent)", marginBottom: 24 }}>
-                    ☁ AWS Cloud Management Platform
+                    ☁ Multi-Cloud Management Platform
                 </div>
                 <h1 style={{ fontSize: 48, fontWeight: 800, letterSpacing: "-0.04em", color: "var(--text)", marginBottom: 16, lineHeight: 1.15 }}>
-                    Monitor your AWS<br />infrastructure in one place
+                    Monitor your cloud<br />infrastructure in one place
                 </h1>
                 <p style={{ fontSize: 16, color: "var(--text2)", maxWidth: 520, margin: "0 auto 36px", lineHeight: 1.7 }}>
-                    Scan resources, track alerts, manage tickets and visualize your cloud operations — all from a single dashboard.
+                    Connect AWS, GCP or Azure. Scan resources, track alerts, manage tickets and visualize your cloud operations — all from a single dashboard.
                 </p>
                 <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
                     <button onClick={onRegister} className="btn-primary" style={{ width: "auto", padding: "12px 32px", marginTop: 0, fontSize: 15 }}>
@@ -232,7 +254,7 @@ const LandingPage = ({ onLogin, onRegister }) => {
             <div style={{ padding: "40px 40px 60px", maxWidth: 1000, margin: "0 auto" }}>
                 <div style={{ textAlign: "center", marginBottom: 40 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Features</div>
-                    <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.03em" }}>Everything you need to manage AWS</div>
+                    <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.03em" }}>Everything you need to manage your cloud</div>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 20 }}>
                     {features.map((f) => (
@@ -323,7 +345,7 @@ const LoginPage = ({ onLogin, onRegister }) => {
     };
 
     return (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "var(--bg)" }}>
+        <div>
             <div style={{
                 background: "var(--surface)", border: "1px solid var(--border)",
                 borderRadius: 20, padding: 48, width: "100%", maxWidth: 440,
@@ -430,7 +452,7 @@ const RegisterPage = ({ onRegister, onBack }) => {
     };
 
     return (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "var(--bg)" }}>
+        <div>
             <div style={{
                 background: "var(--surface)", border: "1px solid var(--border)",
                 borderRadius: 20, padding: 48, width: "100%", maxWidth: 440,
@@ -496,168 +518,706 @@ const RegisterPage = ({ onRegister, onBack }) => {
 };
 
 // ── Edit Credentials Page ──────────────────────────────────────────────────────
+// const EditCredentialsPage = ({ onSave, onBack, userEmail }) => {
+//     const [expandedCloud, setExpandedCloud] = useState("aws");
+//     const [accounts, setAccounts] = useState([]);
+//     const [loadingAccounts, setLoadingAccounts] = useState(false);
+//     const [editingAccount, setEditingAccount] = useState(null);
+//     const [accessKey, setAccessKey] = useState("");
+//     const [secretKey, setSecretKey] = useState("");
+//     const [accountName, setAccountName] = useState("");
+//     const [success, setSuccess] = useState("");
+//     const [error, setError] = useState("");
+//     const [showLoginEdit, setShowLoginEdit] = useState(false);
+//     const [currentPassword, setCurrentPassword] = useState("");
+//     const [newEmail, setNewEmail] = useState(userEmail || "");
+//     const [newPassword, setNewPassword] = useState("");
+//     const [confirmPassword, setConfirmPassword] = useState("");
+//
+//     const showSuccess = (msg) => { setSuccess(msg); setError(""); setTimeout(() => setSuccess(""), 3000); };
+//     const showError = (msg) => { setError(msg); setSuccess(""); };
+//
+//     const fetchAccounts = async () => {
+//         setLoadingAccounts(true);
+//         try {
+//             const token = localStorage.getItem('cloudops-auth-token');
+//             const res = await fetch(`${BACKEND}/api/auth/list-accounts`, {
+//                 headers: { "Authorization": `Bearer ${token}` }
+//             });
+//             const json = await res.json();
+//             setAccounts(json.accounts || []);
+//         } catch (e) {
+//             console.error("Failed to fetch accounts:", e);
+//         } finally {
+//             setLoadingAccounts(false);
+//         }
+//     };
+//
+//     useEffect(() => {
+//         if (expandedCloud === "aws") fetchAccounts();
+//     }, [expandedCloud]);
+//
+//     const handleSaveAWS = async () => {
+//         if (!accessKey || !secretKey) { showError("Both keys are required."); return; }
+//         try {
+//             const token = localStorage.getItem('cloudops-auth-token');
+//             await fetch(`${BACKEND}/api/auth/store-credentials`, {
+//                 method: "POST",
+//                 headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+//                 body: JSON.stringify({ accessKey, secretKey, accountName: accountName || "My AWS Account" }),
+//             });
+//             localStorage.setItem(`cloudops-credentials-${userEmail}`, JSON.stringify({ accessKey, secretKey }));
+//             showSuccess("AWS credentials saved successfully!");
+//             setEditingAccount(null);
+//             setAccessKey(""); setSecretKey(""); setAccountName("");
+//             fetchAccounts();
+//         } catch (e) {
+//             showError("Failed to save credentials.");
+//         }
+//     };
+//
+//     const handleSaveLogin = async () => {
+//         if (!currentPassword) { showError("Current password is required."); return; }
+//         if (!newEmail) { showError("Email cannot be empty."); return; }
+//         if (newPassword && newPassword.length < 6) { showError("Password must be at least 6 characters."); return; }
+//         if (newPassword && newPassword !== confirmPassword) { showError("Passwords do not match."); return; }
+//         try {
+//             await fetch(`${BACKEND}/api/auth/update`, {
+//                 method: "POST",
+//                 headers: { "Content-Type": "application/json" },
+//                 body: JSON.stringify({ currentEmail: userEmail, newEmail, currentPassword, newPassword: newPassword || undefined }),
+//             });
+//             showSuccess("Login credentials updated!");
+//             setTimeout(() => onSave(), 1200);
+//         } catch (e) {
+//             showError("Failed to update login credentials.");
+//         }
+//     };
+//
+//     const clouds = [
+//         {
+//             id: "aws", name: "Amazon AWS", available: true,
+//             iconBg: "#fff3e0", iconColor: "#FF9900",
+//             icon: "☁",
+//         },
+//         { id: "gcp", name: "Google Cloud", available: false, iconBg: "#e8f0fe", icon: "⬡" },
+//         { id: "azure", name: "Microsoft Azure", available: false, iconBg: "#e6f2ff", icon: "◈" },
+//     ];
+//
+//     return (
+//         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "center", minHeight: "100vh", background: "var(--bg)", padding: 24 }}>
+//             <div style={{ width: "100%", maxWidth: 560, paddingTop: 20 }}>
+//
+//                 {/* Header */}
+//                 <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Credentials</div>
+//                 <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 24 }}>Manage your cloud provider accounts and login settings</div>
+//
+//                 {/* Success/Error */}
+//                 {success && (
+//                     <div style={{ background: "var(--green-bg)", border: "1px solid var(--green)", borderRadius: 8, padding: "12px 16px", fontSize: 13, color: "var(--green)", marginBottom: 16 }}>
+//                         ✅ {success}
+//                     </div>
+//                 )}
+//                 {error && (
+//                     <div style={{ background: "var(--red-bg)", border: "1px solid rgba(201,42,42,0.2)", borderRadius: 8, padding: "12px 16px", fontSize: 13, color: "var(--red)", marginBottom: 16 }}>
+//                         ⚠ {error}
+//                     </div>
+//                 )}
+//
+//                 {/* Cloud Providers */}
+//                 <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Cloud Providers</div>
+//                 <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
+//                     {clouds.map((cloud) => (
+//                         <div key={cloud.id} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+//                             {/* Cloud Header Row */}
+//                             <div
+//                                 onClick={() => cloud.available && setExpandedCloud(expandedCloud === cloud.id ? null : cloud.id)}
+//                                 style={{
+//                                     display: "flex", alignItems: "center", gap: 14,
+//                                     padding: "14px 18px", cursor: cloud.available ? "pointer" : "default",
+//                                     opacity: cloud.available ? 1 : 0.5,
+//                                 }}
+//                             >
+//                                 <div style={{ width: 38, height: 38, background: cloud.iconBg, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>
+//                                     {cloud.icon}
+//                                 </div>
+//                                 <div style={{ flex: 1 }}>
+//                                     <div style={{ fontSize: 14, fontWeight: 600 }}>{cloud.name}</div>
+//                                     {!cloud.available && <div style={{ fontSize: 11, color: "var(--text3)" }}>Coming soon</div>}
+//                                 </div>
+//                                 {cloud.available && (
+//                                     <span style={{ fontSize: 12, color: "var(--text3)" }}>
+//                                         {expandedCloud === cloud.id ? "▲" : "▼"}
+//                                     </span>
+//                                 )}
+//                             </div>
+//
+//                             {/* Expanded Accounts */}
+//                             {expandedCloud === cloud.id && (
+//                                 <div style={{ borderTop: "1px solid var(--border)", padding: "12px 18px", background: "var(--surface2)" }}>
+//                                     {loadingAccounts ? (
+//                                         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 0", color: "var(--text3)", fontSize: 13 }}>
+//                                             <Spinner size={14} /> Loading accounts...
+//                                         </div>
+//                                     ) : accounts.length === 0 ? (
+//                                         /* No accounts */
+//                                         <div style={{ textAlign: "center", padding: "20px 0" }}>
+//                                             <div style={{ fontSize: 13, color: "var(--text3)", marginBottom: 12 }}>No accounts connected</div>
+//                                             <button
+//                                                 className="btn"
+//                                                 onClick={() => setEditingAccount("new")}
+//                                                 style={{ fontSize: 12, color: "var(--accent)", borderColor: "var(--accent)" }}
+//                                             >
+//                                                 + Add an Account
+//                                             </button>
+//                                         </div>
+//                                     ) : (
+//                                         /* Account List */
+//                                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+//                                             {accounts.map((acc) => (
+//                                                 <div key={acc.accessKey} style={{
+//                                                     display: "flex", alignItems: "center", gap: 12,
+//                                                     background: "var(--surface)", border: "1px solid var(--border)",
+//                                                     borderRadius: 8, padding: "10px 14px",
+//                                                 }}>
+//                                                     <div style={{ flex: 1 }}>
+//                                                         <div style={{ fontSize: 13, fontWeight: 600 }}>{acc.accountName || "AWS Account"}</div>
+//                                                         <div style={{ fontSize: 11, color: "var(--text3)", fontFamily: "monospace" }}>
+//                                                             {acc.accountId !== 'Unknown' ? acc.accountId : acc.accessKey.slice(0, 8) + "…"}
+//                                                         </div>
+//                                                     </div>
+//                                                     <button
+//                                                         className="btn btn-sm"
+//                                                         onClick={() => {
+//                                                             setEditingAccount(acc);
+//                                                             setAccessKey(acc.accessKey || "");
+//                                                             setSecretKey("");
+//                                                             setAccountName(acc.accountName || "");
+//                                                             setError(""); setSuccess("");
+//                                                         }}
+//                                                     >
+//                                                         ✏ Edit
+//                                                     </button>
+//                                                 </div>
+//                                             ))}
+//                                             {/* Add new account button */}
+//                                             <button
+//                                                 className="btn"
+//                                                 onClick={() => { setEditingAccount("new"); setAccessKey(""); setSecretKey(""); setAccountName(""); }}
+//                                                 style={{ fontSize: 12, color: "var(--accent)", borderColor: "var(--accent)", marginTop: 4 }}
+//                                             >
+//                                                 + Add Another Account
+//                                             </button>
+//                                         </div>
+//                                     )}
+//
+//                                     {/* Edit / Add Form */}
+//                                     {editingAccount && (
+//                                         <div style={{ marginTop: 16, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: 18 }}>
+//                                             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>
+//                                                 {editingAccount === "new" ? "Add New AWS Account" : `Edit — ${editingAccount.accountName || "Account"}`}
+//                                             </div>
+//                                             <FormField label="Account Name">
+//                                                 <input className="form-input" type="text" placeholder="e.g. Production, Development…"
+//                                                        value={accountName} onChange={(e) => setAccountName(e.target.value)} />
+//                                             </FormField>
+//                                             <FormField label="Access Key ID">
+//                                                 <input className="form-input" type="text" placeholder="AKIA…"
+//                                                        value={accessKey} onChange={(e) => setAccessKey(e.target.value)}
+//                                                        style={{ fontFamily: "monospace", fontSize: 13 }} />
+//                                             </FormField>
+//                                             <FormField label="Secret Access Key">
+//                                                 <input className="form-input" type="password" placeholder="Your secret access key"
+//                                                        value={secretKey} onChange={(e) => setSecretKey(e.target.value)}
+//                                                        style={{ fontFamily: "monospace", fontSize: 13 }} />
+//                                             </FormField>
+//                                             <div style={{ display: "flex", gap: 8 }}>
+//                                                 <button className="btn-primary" onClick={handleSaveAWS} style={{ flex: 2 }}>
+//                                                     Save
+//                                                 </button>
+//                                                 <button className="btn" onClick={() => { setEditingAccount(null); setError(""); }} style={{ flex: 1 }}>
+//                                                     Cancel
+//                                                 </button>
+//                                             </div>
+//                                         </div>
+//                                     )}
+//                                 </div>
+//                             )}
+//                         </div>
+//                     ))}
+//                 </div>
+//
+//                 {/* Login Credentials */}
+//                 <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Login Settings</div>
+//                 <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+//                     <div
+//                         onClick={() => setShowLoginEdit(!showLoginEdit)}
+//                         style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", cursor: "pointer" }}
+//                     >
+//                         <div style={{ width: 38, height: 38, background: "var(--surface2)", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>👤</div>
+//                         <div style={{ flex: 1 }}>
+//                             <div style={{ fontSize: 14, fontWeight: 600 }}>Login Credentials</div>
+//                             <div style={{ fontSize: 11, color: "var(--text3)" }}>{userEmail}</div>
+//                         </div>
+//                         <span style={{ fontSize: 12, color: "var(--text3)" }}>{showLoginEdit ? "▲" : "▼"}</span>
+//                     </div>
+//
+//                     {showLoginEdit && (
+//                         <div style={{ borderTop: "1px solid var(--border)", padding: 18, background: "var(--surface2)" }}>
+//                             <FormField label="Current Password">
+//                                 <input className="form-input" type="password" placeholder="Enter current password"
+//                                        value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
+//                             </FormField>
+//                             <FormField label="New Email">
+//                                 <input className="form-input" type="email" placeholder="you@company.com"
+//                                        value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+//                             </FormField>
+//                             <FormField label="New Password (leave blank to keep current)">
+//                                 <input className="form-input" type="password" placeholder="New password"
+//                                        value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+//                             </FormField>
+//                             {newPassword && (
+//                                 <FormField label="Confirm New Password">
+//                                     <input className="form-input" type="password" placeholder="Confirm new password"
+//                                            value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+//                                 </FormField>
+//                             )}
+//                             <button className="btn-primary" onClick={handleSaveLogin}>Save Login Credentials</button>
+//                         </div>
+//                     )}
+//                 </div>
+//
+//                 <div style={{ textAlign: "center", marginTop: 20 }}>
+//                     <button className="btn btn-sm" onClick={onBack}>← Back</button>
+//                 </div>
+//             </div>
+//         </div>
+//     );
+// };
+
 const EditCredentialsPage = ({ onSave, onBack, userEmail }) => {
-    const [activeTab, setActiveTab] = useState("aws");
-
-    const saved = JSON.parse(localStorage.getItem(`cloudops-credentials-${userEmail}`) || '{}');
-    const [accessKey, setAccessKey] = useState(saved.accessKey || "");
-    const [secretKey, setSecretKey] = useState(saved.secretKey || "");
-
-    const [newEmail, setNewEmail] = useState(userEmail || "");
+    const [expandedCloud, setExpandedCloud] = useState("aws");
+    const [accounts, setAccounts] = useState([]);
+    const [loadingAccounts, setLoadingAccounts] = useState(false);
+    const [editingAccount, setEditingAccount] = useState(null);
+    const [accessKey, setAccessKey] = useState("");
+    const [secretKey, setSecretKey] = useState("");
+    const [accountName, setAccountName] = useState("");
+    const [success, setSuccess] = useState("");
+    const [error, setError] = useState("");
+    const [showLoginEdit, setShowLoginEdit] = useState(false);
+    const [showAddProvider, setShowAddProvider] = useState(false);
+    const [customCloudName, setCustomCloudName] = useState("");
+    const [customAccessKey, setCustomAccessKey] = useState("");
+    const [customSecretKey, setCustomSecretKey] = useState("");
     const [currentPassword, setCurrentPassword] = useState("");
+    const [newEmail, setNewEmail] = useState(userEmail || "");
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
 
-    const [success, setSuccess] = useState("");
-    const [error, setError] = useState("");
+    const showSuccess = (msg) => { setSuccess(msg); setError(""); setTimeout(() => setSuccess(""), 3000); };
+    const showError = (msg) => { setError(msg); setSuccess(""); };
 
-    const showSuccess = (msg) => {
-        setSuccess(msg); setError("");
-        setTimeout(() => setSuccess(""), 3000);
+    const clouds = [
+        {
+            id: "aws", name: "Amazon AWS", available: true,
+            iconBg: "#fff3e0", iconColor: "#FF9900",
+            badge: null,
+            icon: (
+                <svg width="22" height="22" viewBox="0 0 48 48" fill="none">
+                    <path d="M16 32.2H32.2C36.4 32.2 39.8 28.8 39.8 24.6C39.8 21.2 37.5 18.4 34.4 17.5C34.5 17.1 34.5 16.7 34.5 16.3C34.5 11.7 30.8 8 26.2 8C23 8 20.2 9.7 18.8 12.3C18.1 12.1 17.3 12 16.5 12C11.8 12 8 15.8 8 20.5C8 24 10.5 27 13.5 28.5" stroke="#FF9900" strokeWidth="2.5" strokeLinecap="round"/>
+                    <path d="M20 38L24 42L28 38M24 36V42" stroke="#FF9900" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+            ),
+            fields: [
+                { key: "accountName", label: "Account Name", type: "text", placeholder: "e.g. Production, Development…", mono: false },
+                { key: "accessKey", label: "Access Key ID", type: "text", placeholder: "AKIA…", mono: true },
+                { key: "secretKey", label: "Secret Access Key", type: "password", placeholder: "Your secret access key", mono: true },
+            ],
+        },
+        {
+            id: "gcp", name: "Google Cloud", available: false,
+            iconBg: "#e8f0fe", badge: "Coming Soon",
+            icon: (
+                <svg width="22" height="22" viewBox="0 0 48 48" fill="none">
+                    <rect x="8" y="8" width="14" height="14" rx="2" fill="#4285F4" opacity="0.8"/>
+                    <rect x="26" y="8" width="14" height="14" rx="2" fill="#34A853" opacity="0.8"/>
+                    <rect x="8" y="26" width="14" height="14" rx="2" fill="#EA4335" opacity="0.8"/>
+                    <rect x="26" y="26" width="14" height="14" rx="2" fill="#FBBC05" opacity="0.8"/>
+                </svg>
+            ),
+            fields: [
+                { key: "accountName", label: "Project Name", type: "text", placeholder: "e.g. my-gcp-project", mono: false },
+                { key: "accessKey", label: "Project ID", type: "text", placeholder: "my-project-123", mono: true },
+                { key: "secretKey", label: "Service Account Key (JSON)", type: "password", placeholder: "Paste your service account key", mono: true },
+            ],
+        },
+        {
+            id: "azure", name: "Microsoft Azure", available: false,
+            iconBg: "#e6f2ff", badge: "Coming Soon",
+            icon: (
+                <svg width="22" height="22" viewBox="0 0 48 48" fill="none">
+                    <path d="M8 24C8 15.2 15.2 8 24 8C28.6 8 32.8 9.9 35.8 13L40 9V21H28L32.5 16.5C30.3 14.3 27.3 13 24 13C17.9 13 13 17.9 13 24H8Z" fill="#0089D6" opacity="0.8"/>
+                    <path d="M40 24C40 32.8 32.8 40 24 40C19.4 40 15.2 38.1 12.2 35L8 39V27H20L15.5 31.5C17.7 33.7 20.7 35 24 35C30.1 35 35 30.1 35 24H40Z" fill="#0089D6" opacity="0.5"/>
+                </svg>
+            ),
+            fields: [
+                { key: "accountName", label: "Subscription Name", type: "text", placeholder: "e.g. My Azure Subscription", mono: false },
+                { key: "accessKey", label: "Tenant ID", type: "text", placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", mono: true },
+                { key: "secretKey", label: "Client Secret", type: "password", placeholder: "Your client secret", mono: true },
+            ],
+        },
+    ];
+
+    const fetchAccounts = async () => {
+        setLoadingAccounts(true);
+        try {
+            const token = localStorage.getItem('cloudops-auth-token');
+            const res = await fetch(`${BACKEND}/api/auth/list-accounts`, {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+            const json = await res.json();
+            setAccounts(json.accounts || []);
+        } catch (e) {
+            console.error("Failed to fetch accounts:", e);
+        } finally {
+            setLoadingAccounts(false);
+        }
     };
-    const showError = (msg) => {
-        setError(msg); setSuccess("");
-    };
+
+    useEffect(() => {
+        if (expandedCloud === "aws") fetchAccounts();
+    }, [expandedCloud]);
 
     const handleSaveAWS = async () => {
         if (!accessKey || !secretKey) { showError("Both keys are required."); return; }
-        localStorage.setItem(`cloudops-credentials-${userEmail}`, JSON.stringify({ accessKey, secretKey }));
-        // Also save to database
         try {
             const token = localStorage.getItem('cloudops-auth-token');
             await fetch(`${BACKEND}/api/auth/store-credentials`, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`
-                },
-                body: JSON.stringify({ accessKey, secretKey }),
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                body: JSON.stringify({ accessKey, secretKey, accountName: accountName || "My AWS Account" }),
             });
+            localStorage.setItem(`cloudops-credentials-${userEmail}`, JSON.stringify({ accessKey, secretKey }));
+            showSuccess("AWS credentials saved successfully!");
+            setEditingAccount(null);
+            setAccessKey(""); setSecretKey(""); setAccountName("");
+            fetchAccounts();
         } catch (e) {
-            console.error("Failed to store credentials in DB:", e);
+            showError("Failed to save credentials.");
         }
-        showSuccess("AWS credentials updated successfully!");
-        setTimeout(() => onSave(), 1200);
+    };
+
+    const handleSaveOtherCloud = (cloudId) => {
+        if (!accessKey || !secretKey) { showError("All fields are required."); return; }
+        localStorage.setItem(`cloudops-credentials-${userEmail}-${cloudId}`, JSON.stringify({ accessKey, secretKey, accountName }));
+        showSuccess(`${cloudId.toUpperCase()} credentials saved locally!`);
+        setEditingAccount(null);
+        setAccessKey(""); setSecretKey(""); setAccountName("");
     };
 
     const handleSaveLogin = async () => {
         if (!currentPassword) { showError("Current password is required."); return; }
         if (!newEmail) { showError("Email cannot be empty."); return; }
-        if (newPassword && newPassword.length < 6) { showError("New password must be at least 6 characters."); return; }
-        if (newPassword && newPassword !== confirmPassword) { showError("New passwords do not match."); return; }
-
-        const registeredUsers = JSON.parse(localStorage.getItem('cloudops-registeredUsers') || '[]');
-        const defaultCredentials = [
-            { email: 'admin@cloudops.com', password: 'CloudOps@2024' },
-            { email: 'user@cloudops.com',  password: 'CloudOps@2024' },
-            { email: 'demo@cloudops.com',  password: 'CloudOps@2024' },
-        ];
-
-        const isDefault = defaultCredentials.some(c => c.email === userEmail && c.password === currentPassword);
-        const userIndex = registeredUsers.findIndex(u => u.email === userEmail && u.password === currentPassword);
-
-        if (!isDefault && userIndex === -1) { showError("Current password is incorrect."); return; }
-
-        if (userIndex !== -1) {
-            registeredUsers[userIndex].email = newEmail;
-            if (newPassword) registeredUsers[userIndex].password = newPassword;
-            localStorage.setItem('cloudops-registeredUsers', JSON.stringify(registeredUsers));
-        }
-
-        if (newEmail !== userEmail) {
-            const creds = localStorage.getItem(`cloudops-credentials-${userEmail}`);
-            if (creds) {
-                localStorage.setItem(`cloudops-credentials-${newEmail}`, creds);
-                localStorage.removeItem(`cloudops-credentials-${userEmail}`);
-            }
-            localStorage.setItem('cloudops-userEmail', newEmail);
-        }
-
+        if (newPassword && newPassword.length < 6) { showError("Password must be at least 6 characters."); return; }
+        if (newPassword && newPassword !== confirmPassword) { showError("Passwords do not match."); return; }
         try {
-            await fetch(
-                "https://cloudops-backend-venkatesh-cgfqcdffc8bhh9cd.eastus-01.azurewebsites.net/api/auth/update",
-                {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        currentEmail: userEmail,
-                        newEmail,
-                        currentPassword,
-                        newPassword: newPassword || undefined,
-                    }),
-                }
-            );
-        } catch (_) { /* backend optional */ }
-
-        showSuccess("Login credentials updated successfully!");
-        setTimeout(() => onSave(), 1200);
+            await fetch(`${BACKEND}/api/auth/update`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ currentEmail: userEmail, newEmail, currentPassword, newPassword: newPassword || undefined }),
+            });
+            showSuccess("Login credentials updated!");
+            setTimeout(() => onSave(), 1200);
+        } catch (e) {
+            showError("Failed to update login credentials.");
+        }
     };
 
-    const tabStyle = (id) => ({
-        flex: 1, padding: "10px 0", fontSize: 13, fontWeight: 600,
-        border: "none", cursor: "pointer", borderRadius: 8,
-        background: activeTab === id ? "var(--accent)" : "transparent",
-        color: activeTab === id ? "#fff" : "var(--text2)",
-        transition: "all 0.15s",
-    });
+    const activeCloud = clouds.find(c => c.id === expandedCloud);
 
     return (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "var(--bg)", padding: 24 }}>
-            <div style={{ width: "100%", maxWidth: 500 }}>
-                <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Edit Credentials</div>
-                <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 20 }}>Update your AWS keys or login credentials</div>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "center", minHeight: "100vh", background: "var(--bg)", padding: 24 }}>
+            <div style={{ width: "100%", maxWidth: 560, paddingTop: 20 }}>
 
-                <div style={{ display: "flex", gap: 4, background: "var(--surface2)", borderRadius: 10, padding: 4, marginBottom: 20 }}>
-                    <button style={tabStyle("aws")} onClick={() => { setActiveTab("aws"); setError(""); setSuccess(""); }}>
-                        🔑 AWS Keys
-                    </button>
-                    <button style={tabStyle("login")} onClick={() => { setActiveTab("login"); setError(""); setSuccess(""); }}>
-                        👤 Login Credentials
+                <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Credentials</div>
+                <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 24 }}>Manage your cloud provider accounts and login settings</div>
+
+                {success && (
+                    <div style={{ background: "var(--green-bg)", border: "1px solid var(--green)", borderRadius: 8, padding: "12px 16px", fontSize: 13, color: "var(--green)", marginBottom: 16 }}>
+                        ✅ {success}
+                    </div>
+                )}
+                {error && (
+                    <div style={{ background: "var(--red-bg)", border: "1px solid rgba(201,42,42,0.2)", borderRadius: 8, padding: "12px 16px", fontSize: 13, color: "var(--red)", marginBottom: 16 }}>
+                        ⚠ {error}
+                    </div>
+                )}
+
+                {/* Add Custom Cloud Provider Modal */}
+                {showAddProvider && (
+                    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}
+                         onClick={(e) => { if (e.target === e.currentTarget) setShowAddProvider(false); }}
+                    >
+                        <div style={{ background: "var(--surface)", borderRadius: 16, padding: 28, width: "100%", maxWidth: 420, boxShadow: "0 12px 40px rgba(0,0,0,0.2)" }}
+                             onClick={e => e.stopPropagation()}
+                        >
+                            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Add Cloud Provider</div>
+                            <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 20 }}>Connect any cloud provider by entering your credentials</div>
+
+                            <FormField label="Cloud Provider Name">
+                                <input className="form-input" type="text"
+                                       placeholder="e.g. Oracle Cloud, Huawei Cloud, IBM Cloud…"
+                                       value={customCloudName}
+                                       onChange={(e) => setCustomCloudName(e.target.value)} />
+                            </FormField>
+                            <FormField label="Access Key / Client ID">
+                                <input className="form-input" type="text"
+                                       placeholder="Your access key or client ID"
+                                       value={customAccessKey}
+                                       onChange={(e) => setCustomAccessKey(e.target.value)}
+                                       style={{ fontFamily: "monospace", fontSize: 13 }} />
+                            </FormField>
+                            <FormField label="Secret Key / Client Secret">
+                                <input className="form-input" type="password"
+                                       placeholder="Your secret key or client secret"
+                                       value={customSecretKey}
+                                       onChange={(e) => setCustomSecretKey(e.target.value)}
+                                       style={{ fontFamily: "monospace", fontSize: 13 }} />
+                            </FormField>
+
+                            <div style={{ background: "var(--amber-bg)", border: "1px solid var(--amber)", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "var(--amber)", marginBottom: 16 }}>
+                                ⚠ Custom cloud providers are saved locally. Full integration coming soon.
+                            </div>
+
+                            <div style={{ display: "flex", gap: 8 }}>
+                                <button
+                                    className="btn-primary"
+                                    style={{ flex: 2, marginTop: 0 }}
+                                    onClick={() => {
+                                        if (!customCloudName || !customAccessKey || !customSecretKey) {
+                                            showError("All fields are required.");
+                                            return;
+                                        }
+                                        const email = localStorage.getItem('cloudops-userEmail');
+                                        localStorage.setItem(
+                                            `cloudops-credentials-${email}-custom-${customCloudName}`,
+                                            JSON.stringify({ accessKey: customAccessKey, secretKey: customSecretKey, accountName: customCloudName })
+                                        );
+                                        showSuccess(`${customCloudName} credentials saved!`);
+                                        setShowAddProvider(false);
+                                        setCustomCloudName(""); setCustomAccessKey(""); setCustomSecretKey("");
+                                    }}
+                                >
+                                    Save Provider
+                                </button>
+                                <button className="btn" onClick={() => { setShowAddProvider(false); setError(""); }} style={{ flex: 1 }}>
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Cloud Providers */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Cloud Providers</div>
+                    <button
+                        className="btn btn-sm"
+                        style={{ fontSize: 11, color: "var(--accent)", borderColor: "var(--accent)" }}
+                        onClick={() => {
+                            setShowAddProvider(true);
+                            setCustomCloudName(""); setCustomAccessKey(""); setCustomSecretKey("");
+                            setError(""); setSuccess("");
+                        }}
+                    >
+                        + Add Cloud Provider
                     </button>
                 </div>
-
-                <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 28 }}>
-                    {error && (
-                        <div style={{ background: "var(--red-bg)", border: "1px solid rgba(201,42,42,0.2)", borderRadius: 8, padding: "12px 16px", fontSize: 13, color: "var(--red)", marginBottom: 16 }}>
-                            ⚠ {error}
-                        </div>
-                    )}
-                    {success && (
-                        <div style={{ background: "var(--green-bg)", border: "1px solid var(--green)", borderRadius: 8, padding: "12px 16px", fontSize: 13, color: "var(--green)", marginBottom: 16 }}>
-                            ✅ {success}
-                        </div>
-                    )}
-
-                    {activeTab === "aws" && (
-                        <>
-                            <FormField label="Access Key ID">
-                                <input className="form-input" type="text" placeholder="AKIA…"
-                                       value={accessKey} onChange={(e) => setAccessKey(e.target.value)}
-                                       style={{ fontFamily: "monospace", fontSize: 13 }} />
-                            </FormField>
-                            <FormField label="Secret Access Key">
-                                <input className="form-input" type="password" placeholder="Your secret access key"
-                                       value={secretKey} onChange={(e) => setSecretKey(e.target.value)}
-                                       style={{ fontFamily: "monospace", fontSize: 13 }} />
-                            </FormField>
-                            <button className="btn-primary" onClick={handleSaveAWS}>Save AWS Keys</button>
-                        </>
-                    )}
-
-                    {activeTab === "login" && (
-                        <>
-                            <div style={{ background: "var(--surface2)", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "var(--text2)", marginBottom: 16 }}>
-                                Currently logged in as: <strong>{userEmail}</strong>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
+                    {clouds.map((cloud) => (
+                        <div key={cloud.id} style={{
+                            background: "var(--surface)", border: `1px solid ${expandedCloud === cloud.id ? "var(--accent)" : "var(--border)"}`,
+                            borderRadius: 12, overflow: "hidden", transition: "border-color 0.15s",
+                        }}>
+                            {/* Cloud Row */}
+                            <div
+                                onClick={() => {
+                                    setExpandedCloud(expandedCloud === cloud.id ? null : cloud.id);
+                                    setEditingAccount(null);
+                                    setError(""); setSuccess("");
+                                }}
+                                style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", cursor: "pointer" }}
+                            >
+                                <div style={{ width: 40, height: 40, background: cloud.iconBg, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                    {cloud.icon}
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
+                                        {cloud.name}
+                                        {cloud.badge && (
+                                            <span style={{ fontSize: 10, fontWeight: 600, background: "var(--surface2)", color: "var(--text3)", border: "1px solid var(--border)", borderRadius: 20, padding: "1px 8px", letterSpacing: "0.04em" }}>
+                                                {cloud.badge}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 1 }}>
+                                        {cloud.id === "aws" ? `${accounts.length} account${accounts.length !== 1 ? "s" : ""} connected` : "Not connected"}
+                                    </div>
+                                </div>
+                                <span style={{ fontSize: 11, color: "var(--text3)", transition: "transform 0.15s", display: "inline-block", transform: expandedCloud === cloud.id ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
                             </div>
+
+                            {/* Expanded Panel */}
+                            {expandedCloud === cloud.id && (
+                                <div style={{ borderTop: "1px solid var(--border)", padding: "16px 18px", background: "var(--surface2)" }}>
+
+                                    {/* AWS — show real accounts */}
+                                    {cloud.id === "aws" && (
+                                        <>
+                                            {loadingAccounts ? (
+                                                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 0", color: "var(--text3)", fontSize: 13 }}>
+                                                    <Spinner size={14} /> Loading accounts...
+                                                </div>
+                                            ) : accounts.length === 0 ? (
+                                                <div style={{ textAlign: "center", padding: "20px 0" }}>
+                                                    <div style={{ fontSize: 32, marginBottom: 8 }}>☁</div>
+                                                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>No accounts connected</div>
+                                                    <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 14 }}>Add your first AWS account to get started</div>
+                                                    <button className="btn" onClick={() => setEditingAccount("new")}
+                                                            style={{ fontSize: 12, color: "var(--accent)", borderColor: "var(--accent)" }}>
+                                                        + Add an Account
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                                    {accounts.map((acc) => (
+                                                        <div key={acc.accessKey} style={{
+                                                            display: "flex", alignItems: "center", gap: 12,
+                                                            background: "var(--surface)", border: "1px solid var(--border)",
+                                                            borderRadius: 8, padding: "10px 14px",
+                                                        }}>
+                                                            <div style={{ width: 32, height: 32, background: "#fff3e0", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>☁</div>
+                                                            <div style={{ flex: 1 }}>
+                                                                <div style={{ fontSize: 13, fontWeight: 600 }}>{acc.accountName || "AWS Account"}</div>
+                                                                <div style={{ fontSize: 11, color: "var(--text3)", fontFamily: "monospace" }}>
+                                                                    {acc.accountId !== 'Unknown' ? acc.accountId : acc.accessKey.slice(0, 8) + "…"}
+                                                                </div>
+                                                            </div>
+                                                            <button className="btn btn-sm"
+                                                                    onClick={() => {
+                                                                        setEditingAccount(acc);
+                                                                        setAccessKey(acc.accessKey || "");
+                                                                        setSecretKey("");
+                                                                        setAccountName(acc.accountName || "");
+                                                                        setError(""); setSuccess("");
+                                                                    }}>
+                                                                ✏ Edit
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                    <button className="btn" onClick={() => { setEditingAccount("new"); setAccessKey(""); setSecretKey(""); setAccountName(""); }}
+                                                            style={{ fontSize: 12, color: "var(--accent)", borderColor: "var(--accent)", marginTop: 4 }}>
+                                                        + Add Another Account
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+
+                                    {/* GCP / Azure — coming soon but can add */}
+                                    {cloud.id !== "aws" && !editingAccount && (
+                                        <div style={{ textAlign: "center", padding: "20px 0" }}>
+                                            <div style={{ width: 48, height: 48, background: cloud.iconBg, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+                                                {cloud.icon}
+                                            </div>
+                                            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{cloud.name} — Coming Soon</div>
+                                            <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 14 }}>Full integration is under development</div>
+                                            <button className="btn" onClick={() => { setEditingAccount("new"); setAccessKey(""); setSecretKey(""); setAccountName(""); }}
+                                                    style={{ fontSize: 12, color: "var(--accent)", borderColor: "var(--accent)" }}>
+                                                + Add Account (Preview)
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Edit / Add Form */}
+                                    {editingAccount && (
+                                        <div style={{ marginTop: cloud.id === "aws" ? 16 : 0, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: 18 }}>
+                                            {/* Form Header with cloud logo */}
+                                            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                                                <div style={{ width: 32, height: 32, background: cloud.iconBg, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                                    {cloud.icon}
+                                                </div>
+                                                <div style={{ fontSize: 13, fontWeight: 600 }}>
+                                                    {editingAccount === "new" ? `Add ${cloud.name} Account` : `Edit — ${editingAccount.accountName || "Account"}`}
+                                                </div>
+                                            </div>
+
+                                            {/* Dynamic fields based on cloud */}
+                                            {cloud.fields.map((field) => (
+                                                <FormField key={field.key} label={field.label}>
+                                                    <input
+                                                        className="form-input"
+                                                        type={field.type}
+                                                        placeholder={field.placeholder}
+                                                        value={field.key === "accountName" ? accountName : field.key === "accessKey" ? accessKey : secretKey}
+                                                        onChange={(e) => {
+                                                            if (field.key === "accountName") setAccountName(e.target.value);
+                                                            else if (field.key === "accessKey") setAccessKey(e.target.value);
+                                                            else setSecretKey(e.target.value);
+                                                        }}
+                                                        style={field.mono ? { fontFamily: "monospace", fontSize: 13 } : {}}
+                                                    />
+                                                </FormField>
+                                            ))}
+
+                                            {cloud.id !== "aws" && (
+                                                <div style={{ background: "var(--amber-bg)", border: "1px solid var(--amber)", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "var(--amber)", marginBottom: 12 }}>
+                                                    ⚠ {cloud.name} integration is coming soon. Credentials will be saved locally only.
+                                                </div>
+                                            )}
+
+                                            <div style={{ display: "flex", gap: 8 }}>
+                                                <button className="btn-primary"
+                                                        onClick={cloud.id === "aws" ? handleSaveAWS : () => handleSaveOtherCloud(cloud.id)}
+                                                        style={{ flex: 2, marginTop: 0 }}>
+                                                    Save
+                                                </button>
+                                                <button className="btn" onClick={() => { setEditingAccount(null); setError(""); }} style={{ flex: 1 }}>
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+
+                {/* Login Settings */}
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Login Settings</div>
+                <div style={{ background: "var(--surface)", border: `1px solid ${showLoginEdit ? "var(--accent)" : "var(--border)"}`, borderRadius: 12, overflow: "hidden", transition: "border-color 0.15s" }}>
+                    <div onClick={() => setShowLoginEdit(!showLoginEdit)}
+                         style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", cursor: "pointer" }}>
+                        <div style={{ width: 40, height: 40, background: "var(--surface2)", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>👤</div>
+                        <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 14, fontWeight: 600 }}>Login Credentials</div>
+                            <div style={{ fontSize: 11, color: "var(--text3)" }}>{userEmail}</div>
+                        </div>
+                        <span style={{ fontSize: 11, color: "var(--text3)", display: "inline-block", transition: "transform 0.15s", transform: showLoginEdit ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
+                    </div>
+                    {showLoginEdit && (
+                        <div style={{ borderTop: "1px solid var(--border)", padding: 18, background: "var(--surface2)" }}>
                             <FormField label="Current Password">
                                 <input className="form-input" type="password" placeholder="Enter current password"
                                        value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
                             </FormField>
-                            <FormField label={<>New Email <span style={{ fontWeight: 400, fontSize: 11, color: "var(--text3)", textTransform: "none" }}>— leave unchanged to keep current</span></>}>
+                            <FormField label="New Email">
                                 <input className="form-input" type="email" placeholder="you@company.com"
                                        value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
                             </FormField>
-                            <FormField label={<>New Password <span style={{ fontWeight: 400, fontSize: 11, color: "var(--text3)", textTransform: "none" }}>— leave blank to keep current</span></>}>
+                            <FormField label="New Password (leave blank to keep current)">
                                 <input className="form-input" type="password" placeholder="New password"
                                        value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
                             </FormField>
@@ -667,12 +1227,14 @@ const EditCredentialsPage = ({ onSave, onBack, userEmail }) => {
                                            value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
                                 </FormField>
                             )}
-                            <button className="btn-primary" onClick={handleSaveLogin}>Save Login Credentials</button>
-                        </>
+                            <button className="btn-primary" onClick={handleSaveLogin} style={{ marginTop: 8 }}>
+                                Save Login Credentials
+                            </button>
+                        </div>
                     )}
                 </div>
 
-                <div style={{ textAlign: "center", marginTop: 16 }}>
+                <div style={{ textAlign: "center", marginTop: 20 }}>
                     <button className="btn btn-sm" onClick={onBack}>← Back</button>
                 </div>
             </div>
@@ -1815,7 +2377,7 @@ const DashboardSection = ({ awsData, accountId }) => {
                 ]);
                 const alertJson = await alertRes.json();
                 const ticketJson = await ticketRes.json();
-                setAlerts(alertJson.alerts || []);
+                const alertsData = alertJson.alerts || []; if (alertsData.length === 0) { const sampleAlerts = [{ alert_id: "ALT-001", title: "Sample High Severity Alert", description: "This is a test alert to verify View button visibility", severity: "High", status: "Active", category: "Security", source: "AWS GuardDuty", timestamp: new Date().toISOString() }]; setAlerts(sampleAlerts); } else { setAlerts(alertsData); }
                 setTickets(ticketJson.tickets || []);
             } catch (e) {
                 console.error("Dashboard fetch error:", e);
@@ -2032,35 +2594,188 @@ const DashboardSection = ({ awsData, accountId }) => {
     );
 };
 
-// ── Alerts Section ────────────────────────────────────────────────────────────────//
+const AlertDetail = ({ alert: a, onBack, accountId, onRefresh }) => {
+    const [creatingTicket, setCreatingTicket] = useState(false);
+    const [ticketCreated, setTicketCreated] = useState(false);
+    const [resolving, setResolving] = useState(false);
+    const [resolved, setResolved] = useState(a.status === "Resolved");
+
+    const sVariant = (s) => {
+        const v = (s || "").toLowerCase();
+        return v === "high" || v === "critical" ? "red" : v === "medium" ? "amber" : "green";
+    };
+
+    const handleCreateTicket = async () => {
+        setCreatingTicket(true);
+        try {
+            await fetch(`${BACKEND}/api/tickets/create`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    ticket_id: `TKT-${Date.now()}`,
+                    account_id: accountId,
+                    alert_id: a.alert_id,
+                    title: a.title,
+                    description: a.description,
+                    severity: a.severity,
+                    category: a.category || "Infrastructure",
+                }),
+            });
+            setTicketCreated(true);
+            onRefresh();
+        } catch (e) {
+            console.error("Failed to create ticket:", e);
+        } finally {
+            setCreatingTicket(false);
+        }
+    };
+
+    const handleResolve = async () => {
+        setResolving(true);
+        try {
+            await fetch(`${BACKEND}/api/alerts/resolve`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ alert_id: a.alert_id }),
+            });
+            setResolved(true);
+            onRefresh();
+        } catch (e) {
+            console.error("Resolve failed:", e);
+        } finally {
+            setResolving(false);
+        }
+    };
+
+    return (
+        <div style={{ maxWidth: 720 }}>
+            <button className="btn btn-sm" onClick={onBack} style={{ marginBottom: 16 }}>← Back to Alerts</button>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+                <div>
+                    <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}><Mono>{a.alert_id}</Mono></div>
+                    <div style={{ fontSize: 13, color: "var(--text2)" }}>
+                        {(a.timestamp || "").slice(0, 19).replace("T", " ")}
+                    </div>
+                </div>
+                <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+                    <Badge text={a.severity || "—"} variant={sVariant(a.severity)} />
+                    <Badge text={resolved ? "Resolved" : a.status || "Active"} variant={resolved ? "green" : "red"} />
+                </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 16 }}>
+                <div>
+                    <Card title="Title">
+                        <div style={{ padding: 18, fontSize: 14, fontWeight: 500 }}>{a.title || "—"}</div>
+                    </Card>
+                    <Card title="Description">
+                        <div style={{ padding: 18, fontSize: 13, color: "var(--text2)", whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
+                            {a.description || "—"}
+                        </div>
+                    </Card>
+                    <Card title="Details">
+                        <div style={{ padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
+                            {[
+                                ["Category", a.category || "—"],
+                                ["Source", a.source || "—"],
+                                ["Account ID", accountId || "—"],
+                            ].map(([label, value]) => (
+                                <div key={label} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                                    <span style={{ color: "var(--text3)", fontWeight: 600 }}>{label}</span>
+                                    <span style={{ color: "var(--text2)" }}>{value}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </Card>
+                </div>
+
+                <div>
+                    <Card title="Actions">
+                        <div style={{ padding: 18, display: "flex", flexDirection: "column", gap: 12 }}>
+                            {ticketCreated ? (
+                                <div style={{ background: "var(--accent-bg)", border: "1px solid var(--accent)", borderRadius: 8, padding: "12px 16px", fontSize: 13, color: "var(--accent)", textAlign: "center", fontWeight: 600 }}>
+                                    🎫 Ticket Created!
+                                </div>
+                            ) : (
+                                <button
+                                    className="btn-primary"
+                                    onClick={handleCreateTicket}
+                                    disabled={creatingTicket}
+                                    style={{ marginTop: 0 }}
+                                >
+                                    {creatingTicket ? "⏳ Creating..." : "🎫 Create Ticket"}
+                                </button>
+                            )}
+
+                            {!resolved ? (
+                                <button
+                                    onClick={handleResolve}
+                                    disabled={resolving}
+                                    style={{
+                                        width: "100%", padding: "10px",
+                                        background: "var(--green-bg)",
+                                        border: "1px solid var(--green)",
+                                        borderRadius: 8, color: "var(--green)",
+                                        fontSize: 13, fontWeight: 600,
+                                        cursor: "pointer",
+                                    }}
+                                >
+                                    {resolving ? "Resolving..." : "✓ Resolve Alert"}
+                                </button>
+                            ) : (
+                                <div style={{ background: "var(--green-bg)", border: "1px solid var(--green)", borderRadius: 8, padding: "12px 16px", fontSize: 13, color: "var(--green)", textAlign: "center", fontWeight: 600 }}>
+                                    ✓ Alert Resolved
+                                </div>
+                            )}
+                        </div>
+                    </Card>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const AlertsSection = ({ accountId }) => {
     const [alerts, setAlerts] = useState([]);
+    const [tickets, setTickets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [search, setSearch] = useState("");
     const [severityFilter, setSeverityFilter] = useState("");
     const [statusFilter, setStatusFilter] = useState("");
+    const [creatingTicket, setCreatingTicket] = useState({});
+    const [selected, setSelected] = useState(null);   // ← ADD THIS
 
-    const loadAlerts = useCallback(async () => {
+    const loadData = useCallback(async () => {
         setLoading(true); setError("");
         try {
             if (!accountId) {
                 setAlerts([]);
+                setTickets([]);
                 setLoading(false);
                 return;
             }
-            const res = await fetch(`${BACKEND}/api/alerts?account_id=${accountId}`);
-            const json = await res.json();
-            setAlerts(json.alerts || []);
+
+            const [alertRes, ticketRes] = await Promise.all([
+                fetch(`${BACKEND}/api/alerts?account_id=${accountId}`),
+                fetch(`${BACKEND}/api/tickets?account_id=${accountId}`),
+            ]);
+            const alertJson = await alertRes.json();
+            const ticketJson = await ticketRes.json();
+            const alertsData = alertJson.alerts || []; if (alertsData.length === 0) { const sampleAlerts = [{ alert_id: "ALT-001", title: "Sample High Severity Alert", description: "This is a test alert to verify View button visibility", severity: "High", status: "Active", category: "Security", source: "AWS GuardDuty", timestamp: new Date().toISOString() }]; setAlerts(sampleAlerts); } else { setAlerts(alertsData); }
+            setTickets(ticketJson.tickets || []);
+
         } catch (e) {
-            setError(`Failed to load alerts: ${e.message}`);
+            setError(`Failed to load: ${e.message}`);
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [accountId]);
 
-    useEffect(() => { loadAlerts(); }, [loadAlerts]);
+    useEffect(() => {
+        if (accountId) loadData();
+    }, [loadData, accountId]);
 
     const sVariant = (s) => {
         const v = (s || "").toLowerCase();
@@ -2080,6 +2795,8 @@ const AlertsSection = ({ accountId }) => {
         return true;
     });
 
+    if (selected) return <AlertDetail alert={selected} onBack={() => setSelected(null)} accountId={accountId} onRefresh={loadData} />;
+
     return (
         <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
@@ -2087,7 +2804,7 @@ const AlertsSection = ({ accountId }) => {
                     <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.03em", marginBottom: 4 }}>Alerts</div>
                     <div style={{ fontSize: 13, color: "var(--text2)" }}>{alerts.length} alerts</div>
                 </div>
-                <button className="btn btn-sm" onClick={loadAlerts}>↺ Refresh</button>
+                <button className="btn btn-sm" onClick={loadData}>↺ Refresh</button>
             </div>
 
             {loading && <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 24 }}><Spinner /> <span style={{ color: "var(--text2)", fontSize: 13 }}>Loading alerts…</span></div>}
@@ -2113,35 +2830,54 @@ const AlertsSection = ({ accountId }) => {
                     <Card title={`Alerts (${filtered.length})`}>
                         <DataTable
                             columns={["Alert ID","Title","Severity","Status","Category","Source","Timestamp","Actions"]}
-                            rows={filtered.map((a) => [
-                                <Mono>{a.alert_id}</Mono>,
-                                <span style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", display: "block" }}>{a.title || "—"}</span>,
-                                <Badge text={a.severity || "—"} variant={sVariant(a.severity)} />,
-                                <Badge text={a.status || "Active"} variant={stVariant(a.status)} />,
-                                a.category || "—",
-                                a.source || "—",
-                                <span style={{ fontSize: 11 }}>{(a.timestamp || "").slice(0, 19).replace("T", " ")}</span>,
-                                a.status === "Active" ? (
-                                    <button
-                                        className="btn btn-sm"
-                                        style={{ fontSize: 11, color: "var(--green)", borderColor: "var(--green)" }}
-                                        onClick={async () => {
-                                            try {
-                                                await fetch(`${BACKEND}/api/alerts/resolve`, {
-                                                    method: "POST",
-                                                    headers: { "Content-Type": "application/json" },
-                                                    body: JSON.stringify({ alert_id: a.alert_id }),
-                                                });
-                                                loadAlerts();
-                                            } catch (e) {
-                                                console.error("Resolve failed:", e);
-                                            }
-                                        }}
-                                    >
-                                        ✓ Resolve
-                                    </button>
-                                ) : <Badge text="Resolved" variant="green" />,
-                            ])}
+                            rows={filtered.map((a) => {
+                                return [
+                                    <Mono>{a.alert_id}</Mono>,
+                                    <span style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", display: "block" }}>{a.title || "—"}</span>,
+                                    <Badge text={a.severity || "—"} variant={sVariant(a.severity)} />,
+                                    <Badge text={a.status || "Active"} variant={stVariant(a.status)} />,
+                                    a.category || "—",
+                                    a.source || "—",
+                                    <span style={{ fontSize: 11 }}>{(a.timestamp || "").slice(0, 19).replace("T", " ")}</span>,
+                                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                        <button 
+                                            className="btn btn-sm" 
+                                            onClick={() => setSelected(a)}
+                                            style={{ 
+                                                background: "var(--accent)", 
+                                                color: "#fff", 
+                                                border: "none",
+                                                fontWeight: "600",
+                                                minWidth: "60px"
+                                            }}
+                                        >
+                                            View
+                                        </button>
+                                        {a.status === "Active" ? (
+                                            <button
+                                                className="btn btn-sm"
+                                                style={{ fontSize: 11, color: "var(--green)", borderColor: "var(--green)" }}
+                                                onClick={async () => {
+                                                    try {
+                                                        await fetch(`${BACKEND}/api/alerts/resolve`, {
+                                                            method: "POST",
+                                                            headers: { "Content-Type": "application/json" },
+                                                            body: JSON.stringify({ alert_id: a.alert_id }),
+                                                        });
+                                                        loadData();
+                                                    } catch (e) {
+                                                        console.error("Resolve failed:", e);
+                                                    }
+                                                }}
+                                            >
+                                                ✓ Resolve
+                                            </button>
+                                        ) : (
+                                            <Badge text="Resolved" variant="green" />
+                                        )}
+                                    </div>,
+                                ];
+                            })}
                             empty="No alerts found"
                         />
                     </Card>
@@ -2465,11 +3201,42 @@ const getNavItems = (cloud) => {
 };
 
 
-const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, initialSection, onNewScan, onSwitchCloud, onSignOut, onScanRegions }) => {
+const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, initialSection, onNewScan, onSwitchCloud, onSignOut, onScanRegions, onSetSelectedCloud, onClearData }) => {
     const [section, setSection] = useState(() => {
         return localStorage.getItem('cloudops-section') || "overview";
     });
     const [appSection, setAppSection] = useState(initialSection || "main");
+    const [sectionHistory, setSectionHistory] = useState([]);
+
+    const navigateTo = (newSection) => {
+        setSectionHistory(prev => [...prev, appSection]);
+        setAppSection(newSection);
+        window.history.pushState({ section: newSection }, "", `#${newSection}`);
+    };
+
+    const navigateBack = () => {
+        if (sectionHistory.length > 0) {
+            const previousSection = sectionHistory[sectionHistory.length - 1];
+            setSectionHistory(history => history.slice(0, -1));
+            setAppSection(previousSection);
+            window.history.pushState({ section: previousSection }, "", `#${previousSection}`);
+        } else {
+            setAppSection("main");
+            window.history.pushState({ section: "main" }, "", "#main");
+        }
+    };
+
+    useEffect(() => {
+        const handlePopState = (event) => {
+            if (event.state?.section) {
+                setAppSection(event.state.section);
+            } else {
+                setAppSection("main");
+            }
+        };
+        window.addEventListener("popstate", handlePopState);
+        return () => window.removeEventListener("popstate", handlePopState);
+    }, []);
 
     useEffect(() => {
         if (initialSection && initialSection !== "main") {
@@ -2507,9 +3274,26 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
 
     const renderContent = () => {
         // Inner app pages
-        if (appSection === "editCredentials") return <EditCredentialsPage userEmail={userEmail} onSave={() => setAppSection("main")} onBack={() => setAppSection("main")} />;
-        if (appSection === "setupGuide") return <SetupGuidePage onContinue={() => setAppSection("scan")} onBack={() => setAppSection("main")} />;
-        if (appSection === "scan") return <ScanForm onCredentialsSaved={() => setAppSection("accountSelection")} />;
+        if (appSection === "cloudSelect") return <CloudSelectPage
+            onSelectCloud={(cloud) => {
+                if (cloud === "aws") {
+                    onClearData();
+                    onSetSelectedCloud("aws");
+                    navigateTo("accountSelection");
+                }
+            }}
+            onBack={() => {
+                if (accountId) {
+                    onSetSelectedCloud("aws");
+                }
+                navigateBack();
+            }}
+            onSignOut={onSignOut}
+            userEmail={userEmail}
+        />;
+        if (appSection === "editCredentials") return <EditCredentialsPage userEmail={userEmail} onSave={navigateBack} onBack={navigateBack} />;
+        if (appSection === "setupGuide") return <SetupGuidePage onContinue={() => navigateTo("scan")} onBack={navigateBack} />;
+        if (appSection === "scan") return <ScanForm onCredentialsSaved={() => navigateTo("accountSelection")} />;
         if (appSection === "accountSelection") return <AccountSelectionPage
             onSelectAccount={async (acc) => {
                 const email = localStorage.getItem('cloudops-userEmail');
@@ -2530,14 +3314,18 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
                 } catch (e) {
                     console.error("Failed to fetch account credentials:", e);
                 }
-                setAppSection("regionSelection");
+                navigateTo("regionSelection");
             }}
-            onAddNew={() => setAppSection("setupGuide")}
-            onBack={() => setAppSection("main")}
+            onAddNew={() => navigateTo("setupGuide")}
+            onBack={navigateBack}
         />;
         if (appSection === "regionSelection") return <RegionSelectionPage
-            onScanRegions={onScanRegions}
-            onBack={() => setAppSection("main")}
+            onScanRegions={async (regions) => {
+                await onScanRegions(regions);
+                setAppSection("main");
+                setSection("overview");
+            }}
+            onBack={navigateBack}
             userEmail={userEmail}
         />;
 
@@ -2553,9 +3341,9 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
                     <button
                         className="btn-primary"
                         style={{ width: "auto", padding: "10px 24px", marginTop: 8 }}
-                        onClick={() => setAppSection("accountSelection")}
+                        onClick={() => navigateTo("cloudSelect")}
                     >
-                        Connect Cloud Provider →
+                        Select Your Cloud →
                     </button>
                 </div>
             );
@@ -2610,7 +3398,12 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
                             <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em", padding: "12px 8px 6px" }}>{sectionName}</div>
                             {NAV_ITEMS.filter((n) => n.section === sectionName).map((nav) => (
                                 <button key={nav.id}
-                                        onClick={() => { setSection(nav.id); localStorage.setItem('cloudops-section', nav.id); }}
+                                        onClick={() => {
+                                            setSection(nav.id);
+                                            localStorage.setItem('cloudops-section', nav.id);
+                                            setAppSection("main");
+                                            setSectionHistory([]);
+                                        }}
                                         style={{
                                             display: "flex", alignItems: "center", gap: 8,
                                             padding: "8px 10px", borderRadius: 6, cursor: "pointer",
@@ -2660,7 +3453,7 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
 
                 <div style={{ padding: "8px 8px 0" }}>
                     <button
-                        onClick={() => setAppSection("editCredentials")}
+                        onClick={() => navigateTo("editCredentials")}
                         style={{
                             display: "flex", alignItems: "center", gap: 8,
                             padding: "8px 10px", borderRadius: 6, cursor: "pointer",
@@ -2677,15 +3470,9 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
                 </div>
 
                 <div style={{ padding: "12px 8px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 4 }}>
-                    <button onClick={onSwitchCloud} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 13, width: "100%", textAlign: "left", border: "none", background: "transparent", color: "var(--text2)", fontFamily: "inherit" }}
-                        onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                    >
-                        <span style={{ fontSize: 14, width: 18, textAlign: "center" }}>☁</span> Switch Provider
-                    </button>
                     <button onClick={onSignOut} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 13, width: "100%", textAlign: "left", border: "none", background: "transparent", color: "var(--red)", fontFamily: "inherit" }}
-                        onMouseEnter={e => e.currentTarget.style.background = "var(--red-bg)"}
-                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                            onMouseEnter={e => e.currentTarget.style.background = "var(--red-bg)"}
+                            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                     >
                         <span style={{ fontSize: 14, width: 18, textAlign: "center" }}>→</span> Sign Out
                     </button>
@@ -2694,8 +3481,37 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
 
             <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
                 <div style={{ height: 52, background: "var(--surface)", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", padding: "0 24px", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 50 }}>
-                    <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: "-0.01em" }}>{sectionTitle}</span>
-                    <button className="btn btn-sm" onClick={() => { onNewScan(); setAppSection("regionSelection"); }}>↺ New Scan</button>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        {appSection !== "main" && (
+                            <button
+                                onClick={navigateBack}
+                                style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 6, background: "var(--surface2)", border: "1px solid var(--border)", cursor: "pointer", color: "var(--text2)" }}
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="15 18 9 12 15 6"/>
+                                </svg>
+                            </button>
+                        )}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        {accountId && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 12px", background: "var(--green-bg)", border: "1px solid var(--green-border, #a7f3d0)", borderRadius: 20, fontSize: 11, fontWeight: 600, color: "var(--green)" }}>
+                                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--green)" }} />
+                                {accountId}
+                            </div>
+                        )}
+                        <button
+                            className="btn btn-sm"
+                            onClick={() => { onSwitchCloud(); navigateTo("cloudSelect"); }}
+                            style={{ display: "flex", alignItems: "center", gap: 6 }}
+                        >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+                            </svg>
+                            Switch Cloud
+                        </button>
+                        <button className="btn btn-sm" onClick={() => { onNewScan(); navigateTo("regionSelection"); }}>↺ New Scan</button>
+                    </div>
                 </div>
                 <div style={{ flex: 1, padding: 24, overflowY: "auto" }}>
                     {renderContent()}
@@ -2723,20 +3539,34 @@ export default function App() {
         }
         return "app";
     });
-    const [awsData, setAwsData] = useState(null);
-    const [scanMeta, setScanMeta] = useState(null);
-    const [accountId, setAccountId] = useState("");
+    const [awsData, setAwsData] = useState(() => {
+        const email = localStorage.getItem('cloudops-userEmail');
+        if (!email) return null;
+        const saved = localStorage.getItem(`cloudops-awsData-${email}`);
+        return saved ? JSON.parse(saved) : null;
+    });
+    const [scanMeta, setScanMeta] = useState(() => {
+        const email = localStorage.getItem('cloudops-userEmail');
+        if (!email) return null;
+        const saved = localStorage.getItem(`cloudops-scanMeta-${email}`);
+        return saved ? JSON.parse(saved) : null;
+    });
+    const [accountId, setAccountId] = useState(() => {
+        return localStorage.getItem('cloudops-accountId') || "";
+    });
     const [userEmail, setUserEmail] = useState(() => {
         return localStorage.getItem('cloudops-userEmail') || "";
     });
-    const [selectedCloud, setSelectedCloud] = useState("");
+    const [selectedCloud, setSelectedCloud] = useState(() => {
+        return localStorage.getItem('cloudops-selectedCloud') || "";
+    });
     const [cloudAppSection, setCloudAppSection] = useState("main");
 
     // Clear all stale cloud data on app start
-    localStorage.removeItem('cloudops-awsData');
-    localStorage.removeItem('cloudops-scanMeta');
-    localStorage.removeItem('cloudops-accountId');
-    localStorage.removeItem('cloudops-selectedCloud');
+    // localStorage.removeItem('cloudops-awsData');
+    // localStorage.removeItem('cloudops-scanMeta');
+    // localStorage.removeItem('cloudops-accountId');
+    // localStorage.removeItem('cloudops-selectedCloud');
 
     useEffect(() => {
         localStorage.setItem('cloudops-page', page);
@@ -2957,10 +3787,6 @@ export default function App() {
                     const aid = json.identity?.account_id || "";
                     setAccountId(aid);
                     localStorage.setItem('cloudops-accountId', aid);
-                    setAccountId(aid);
-                    localStorage.setItem('cloudops-accountId', aid);
-                    localStorage.setItem('cloudops-page', 'app');
-                    setPage("app");
                     return;
                 }
             }
@@ -3012,29 +3838,18 @@ export default function App() {
               ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
             `}</style>
 
-            {page === "landing" && <LandingPage onLogin={() => setPage("login")} onRegister={() => setPage("register")} />}
-
-            {page === "login" && <LoginPage onLogin={handleLogin} onRegister={() => setPage("register")} />}
-
-            {page === "register" && (
-                <RegisterPage onRegister={handleRegister} onBack={() => setPage("login")} />
-            )}
-
-            {page === "cloud" && (
-                <CloudSelectPage
-                    onSelectCloud={(cloud) => {
-                        if (cloud === "aws") {
-                            setSelectedCloud("aws");
-                            const isNewUser = localStorage.getItem('cloudops-isNewUser') === 'true';
-                            setCloudAppSection(isNewUser ? "setupGuide" : "accountSelection");
-                            setPage("app");
-                        }
-                    }}
-                    onBack={() => setPage("app")}
-                    onSignOut={handleLogout}
-                    userEmail={userEmail}
+            {(page === "landing" || page === "login" || page === "register") && (
+                <LandingPage
+                    onLogin={() => setPage("login")}
+                    onRegister={() => setPage("register")}
+                    activePage={page}
+                    handleLogin={handleLogin}
+                    handleRegister={handleRegister}
+                    setPage={setPage}
                 />
             )}
+
+
 
 
 
@@ -3051,21 +3866,24 @@ export default function App() {
                         setAwsData(null);
                         setScanMeta(null);
                         setAccountId("");
-                        setSelectedCloud("");
-                        localStorage.removeItem('cloudops-accountId');
-                        localStorage.removeItem('cloudops-selectedCloud');
+                        //setSelectedCloud("");
+                        //localStorage.removeItem('cloudops-accountId');
+                        //localStorage.removeItem('cloudops-selectedCloud');
                     }}
-                    onSwitchCloud={() => {
-                        setSelectedCloud("");
+                    onSwitchCloud={() => {}}
+                    onSignOut={handleLogout}
+                    onSetSelectedCloud={(cloud) => {
+                        setSelectedCloud(cloud);
+                        localStorage.setItem('cloudops-selectedCloud', cloud);
+                    }}
+                    onClearData={() => {
                         setAwsData(null);
                         setScanMeta(null);
                         setAccountId("");
+                        setSelectedCloud("");
                         localStorage.removeItem('cloudops-accountId');
                         localStorage.removeItem('cloudops-selectedCloud');
-                        setCloudAppSection("main");
-                        setPage("cloud");
                     }}
-                    onSignOut={handleLogout}
                 />
             )}
         </>
