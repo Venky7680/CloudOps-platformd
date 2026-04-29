@@ -3470,6 +3470,12 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
                 </div>
 
                 <div style={{ padding: "12px 8px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 4 }}>
+<button onClick={() => { onSwitchCloud(); navigateTo("cloudSelect"); }} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 13, width: "100%", textAlign: "left", border: "none", background: "transparent", color: "var(--text2)", fontFamily: "inherit" }}
+                            onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
+                            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    >
+                        <span style={{ fontSize: 14, width: 18, textAlign: "center" }}>☁</span> Switch Provider
+                    </button>
                     <button onClick={onSignOut} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 13, width: "100%", textAlign: "left", border: "none", background: "transparent", color: "var(--red)", fontFamily: "inherit" }}
                             onMouseEnter={e => e.currentTarget.style.background = "var(--red-bg)"}
                             onMouseLeave={e => e.currentTarget.style.background = "transparent"}
@@ -3481,7 +3487,7 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
 
             <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
                 <div style={{ height: 52, background: "var(--surface)", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", padding: "0 24px", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 50 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         {appSection !== "main" && (
                             <button
                                 onClick={navigateBack}
@@ -3872,7 +3878,7 @@ export default function App() {
                     }}
                     onSwitchCloud={() => {}}
                     onSignOut={handleLogout}
-                    onSetSelectedCloud={(cloud) => {
+onSetSelectedCloud={(cloud) => {
                         setSelectedCloud(cloud);
                         localStorage.setItem('cloudops-selectedCloud', cloud);
                     }}
