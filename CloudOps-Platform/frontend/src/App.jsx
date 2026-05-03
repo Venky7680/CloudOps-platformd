@@ -175,138 +175,440 @@ const Spinner = ({ size = 20 }) => (
 
 // ── Landing Page ───────────────────────────────────────────────────────────────
 const LandingPage = ({ onLogin, onRegister, activePage, handleLogin, handleRegister, setPage }) => {
-    const features = [
-        { icon: "🔍", title: "Scan Cloud Resources", desc: "Compute, Storage, Databases, Networking and more across all regions and providers" },
-        { icon: "🔔", title: "Real-time Alerts", desc: "Get notified instantly when alarms trigger across your cloud accounts" },
-        { icon: "🎫", title: "Ticket Management", desc: "Auto-create tickets for High and Critical alerts, track and resolve them" },
-        { icon: "📊", title: "Dashboard & Charts", desc: "Visualize your cloud operations with beautiful charts and summaries" },
+
+    const [isDark, setIsDark] = useState(true);
+    const [authMode, setAuthMode] = useState(null); // 'login' | 'register' | null
+
+    // Login form state
+    const [loginEmail, setLoginEmail]       = useState(() => { try { return localStorage.getItem('cloudops-rememberedEmail') || ''; } catch { return ''; } });
+    const [loginPassword, setLoginPassword] = useState('');
+    const [loginError, setLoginError]       = useState('');
+    const [loginLoading, setLoginLoading]   = useState(false);
+    const [rememberMe, setRememberMe]       = useState(() => { try { return localStorage.getItem('cloudops-rememberMe') === 'true'; } catch { return false; } });
+    const [showLoginPass, setShowLoginPass] = useState(false);
+
+    // Register form state
+    const [regEmail, setRegEmail]             = useState('');
+    const [regPassword, setRegPassword]       = useState('');
+    const [regConfirm, setRegConfirm]         = useState('');
+    const [regError, setRegError]             = useState('');
+    const [regLoading, setRegLoading]         = useState(false);
+    const [showRegPass, setShowRegPass]       = useState(false);
+    const [showRegConfirm, setShowRegConfirm] = useState(false);
+
+    // ── Theme tokens ──────────────────────────────────────────────────────────
+    const t = {
+        bg:          isDark ? "#070b14"                    : "#f4f6ff",
+        surface:     isDark ? "rgba(255,255,255,0.04)"     : "rgba(255,255,255,0.85)",
+        border:      isDark ? "rgba(255,255,255,0.08)"     : "rgba(99,102,241,0.15)",
+        text:        isDark ? "#f1f5f9"                    : "#0d0f1c",
+        textSub:     isDark ? "rgba(241,245,249,0.55)"     : "rgba(13,15,28,0.58)",
+        textFaint:   isDark ? "rgba(241,245,249,0.3)"      : "rgba(13,15,28,0.35)",
+        navBg:       isDark ? "rgba(7,11,20,0.82)"         : "rgba(244,246,255,0.88)",
+        navBorder:   isDark ? "rgba(255,255,255,0.07)"     : "rgba(99,102,241,0.14)",
+        secBg:       isDark ? "rgba(255,255,255,0.018)"    : "rgba(99,102,241,0.025)",
+        secBorder:   isDark ? "rgba(255,255,255,0.06)"     : "rgba(99,102,241,0.1)",
+        inputBg:     isDark ? "rgba(255,255,255,0.06)"     : "#ffffff",
+        inputBorder: isDark ? "rgba(255,255,255,0.12)"     : "rgba(99,102,241,0.22)",
+        footerText:  isDark ? "rgba(241,245,249,0.22)"     : "rgba(13,15,28,0.32)",
+        cardShadow:  isDark ? "0 2px 24px rgba(0,0,0,0.4)": "0 2px 24px rgba(99,102,241,0.08)",
+        modalBg:     isDark ? "#0d1120"                    : "#ffffff",
+        modalShadow: isDark ? "0 32px 80px rgba(0,0,0,0.7),0 0 0 1px rgba(99,102,241,0.1)" : "0 32px 80px rgba(99,102,241,0.18),0 0 0 1px rgba(99,102,241,0.14)",
+        errBg:       isDark ? "rgba(239,68,68,0.1)"        : "rgba(239,68,68,0.06)",
+        errBorder:   isDark ? "rgba(239,68,68,0.3)"        : "rgba(239,68,68,0.25)",
+    };
+
+    const products = [
+        { id:"cloudops", color:"#6366f1", gradient:"linear-gradient(135deg,#6366f1,#4f46e5)", glow:"rgba(99,102,241,0.25)", bg:isDark?"rgba(99,102,241,0.1)":"rgba(99,102,241,0.08)",
+            icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>,
+            title:"CloudOps", tagline:"Infrastructure Management", desc:"Scan and manage AWS, GCP or Azure resources across all regions with real-time visibility.", features:["Multi-region resource scan","Cost & usage analytics","IAM, S3, Route53, CloudFront"] },
+        { id:"secops", color:"#ef4444", gradient:"linear-gradient(135deg,#ef4444,#dc2626)", glow:"rgba(239,68,68,0.25)", bg:isDark?"rgba(239,68,68,0.1)":"rgba(239,68,68,0.08)",
+            icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
+            title:"SecOps", tagline:"Security Operations", desc:"Detect threats, scan vulnerabilities and audit IAM policies across your entire cloud estate.", features:["Threat detection","Vulnerability scanning","Compliance reports"] },
+        { id:"finops", color:"#10b981", gradient:"linear-gradient(135deg,#10b981,#059669)", glow:"rgba(16,185,129,0.25)", bg:isDark?"rgba(16,185,129,0.1)":"rgba(16,185,129,0.08)",
+            icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+            title:"FinOps", tagline:"Cost Management", desc:"Track and optimise cloud spending with budget alerts, cost allocation and savings recommendations.", features:["Cost analysis by service","Budget alerts","Savings recommendations"] },
+        { id:"aiops", color:"#8b5cf6", gradient:"linear-gradient(135deg,#8b5cf6,#7c3aed)", glow:"rgba(139,92,246,0.25)", bg:isDark?"rgba(139,92,246,0.1)":"rgba(139,92,246,0.08)",
+            icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>,
+            title:"AIOps", tagline:"AI-Powered Operations", desc:"Leverage machine learning to detect anomalies, predict incidents and auto-remediate issues.", features:["Anomaly detection","Predictive analytics","Auto-remediation"] },
+        { id:"rfp", color:"#f59e0b", gradient:"linear-gradient(135deg,#f59e0b,#d97706)", glow:"rgba(245,158,11,0.25)", bg:isDark?"rgba(245,158,11,0.1)":"rgba(245,158,11,0.08)",
+            icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
+            title:"RFP Generator", tagline:"Document Automation", desc:"Generate professional RFP documents from live cloud infrastructure data using AI templates.", features:["AI-powered templates","PDF export","Live cloud data"] },
     ];
 
-    const steps = [
-        { number: "1", title: "Register", desc: "Create your CloudOps account in seconds" },
-        { number: "2", title: "Connect Cloud", desc: "Add your AWS, GCP or Azure credentials securely" },
-        { number: "3", title: "Scan & Monitor", desc: "Scan resources and monitor alerts in real time" },
+    const stats = [
+        { value:"20+",  label:"AWS Regions",      icon:"🌐", color:"#6366f1" },
+        { value:"18+",  label:"Resource Types",   icon:"📦", color:"#8b5cf6" },
+        { value:"100%", label:"Alert Automation", icon:"⚡", color:"#10b981" },
+        { value:"5",    label:"Integrated Tools", icon:"🔧", color:"#f59e0b" },
     ];
 
-    return (
-        <div style={{ minHeight: "100vh", background: "var(--bg)", fontFamily: "var(--font)" }}>
+    // ── Handlers ──────────────────────────────────────────────────────────────
+    const doLogin = async () => {
+        if (!loginEmail || !loginPassword) { setLoginError("Please enter your email and password."); return; }
+        setLoginLoading(true); setLoginError('');
+        try {
+            if (handleLogin)     await handleLogin(loginEmail, loginPassword);
+            else if (onLogin)    await onLogin(loginEmail, loginPassword);
+            try {
+                if (rememberMe) { localStorage.setItem('cloudops-rememberedEmail', loginEmail); localStorage.setItem('cloudops-rememberMe','true'); }
+                else { localStorage.removeItem('cloudops-rememberedEmail'); localStorage.removeItem('cloudops-rememberMe'); }
+            } catch {}
+            setAuthMode(null);
+        } catch(err) {
+            setLoginError(err.message || "Invalid email or password.");
+        } finally { setLoginLoading(false); }
+    };
 
-            {/* Login Modal Overlay */}
-            {activePage === "login" && (
-                <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}
-                     onClick={(e) => { if (e.target === e.currentTarget) setPage("landing"); }}
-                >
-                    <div onClick={e => e.stopPropagation()}>
-                        <LoginPage onLogin={handleLogin} onRegister={() => setPage("register")} />
-                    </div>
-                </div>
-            )}
+    const doRegister = async () => {
+        if (!regEmail || !regPassword || !regConfirm) { setRegError("Please fill in all fields."); return; }
+        if (regPassword.length < 6) { setRegError("Password must be at least 6 characters."); return; }
+        if (regPassword !== regConfirm) { setRegError("Passwords do not match."); return; }
+        setRegLoading(true); setRegError('');
+        try {
+            if (handleRegister)      await handleRegister(regEmail, regPassword);
+            else if (onRegister)     await onRegister(regEmail, regPassword);
+            setAuthMode(null);
+        } catch(err) {
+            setRegError(err.message || "Registration failed. Please try again.");
+        } finally { setRegLoading(false); }
+    };
 
-            {/* Register Modal Overlay */}
-            {activePage === "register" && (
-                <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}
-                     onClick={(e) => { if (e.target === e.currentTarget) setPage("landing"); }}
-                >
-                    <div onClick={e => e.stopPropagation()}>
-                        <RegisterPage onRegister={handleRegister} onBack={() => setPage("login")} />
-                    </div>
-                </div>
-            )}
+    const openLogin    = () => { setLoginError(''); setLoginPassword(''); setAuthMode('login'); };
+    const openRegister = () => { setRegError(''); setRegEmail(''); setRegPassword(''); setRegConfirm(''); setAuthMode('register'); };
 
-            {/* Navbar */}
-            <div style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)", padding: "0 40px", height: 60, display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 32, height: 32, background: "var(--accent)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                        </svg>
-                    </div>
-                    <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.02em" }}>CloudOps</span>
-                </div>
-                <div style={{ display: "flex", gap: 12 }}>
-                    <button onClick={onLogin} className="btn">Sign In</button>
-                    <button onClick={onRegister} className="btn-primary" style={{ width: "auto", padding: "8px 20px", marginTop: 0 }}>Get Started</button>
-                </div>
-            </div>
+    // ── Shared input styles ───────────────────────────────────────────────────
+    const inp = {
+        width:"100%", padding:"11px 14px", borderRadius:10,
+        background:t.inputBg, border:`1.5px solid ${t.inputBorder}`,
+        color:t.text, fontSize:14, outline:"none",
+        fontFamily:"'DM Sans',sans-serif", boxSizing:"border-box",
+        transition:"border-color 0.2s",
+    };
+    const lbl = { fontSize:12, fontWeight:600, color:t.textSub, marginBottom:6, display:"block", letterSpacing:"0.02em" };
 
-            {/* Hero */}
-            <div style={{ textAlign: "center", padding: "80px 24px 60px" }}>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "var(--accent-bg)", border: "1px solid var(--accent)", borderRadius: 20, padding: "4px 14px", fontSize: 12, fontWeight: 600, color: "var(--accent)", marginBottom: 24 }}>
-                    ☁ Multi-Cloud Management Platform
-                </div>
-                <h1 style={{ fontSize: 48, fontWeight: 800, letterSpacing: "-0.04em", color: "var(--text)", marginBottom: 16, lineHeight: 1.15 }}>
-                    Monitor your cloud<br />infrastructure in one place
-                </h1>
-                <p style={{ fontSize: 16, color: "var(--text2)", maxWidth: 520, margin: "0 auto 36px", lineHeight: 1.7 }}>
-                    Connect AWS, GCP or Azure. Scan resources, track alerts, manage tickets and visualize your cloud operations — all from a single dashboard.
-                </p>
-                <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-                    <button onClick={onRegister} className="btn-primary" style={{ width: "auto", padding: "12px 32px", marginTop: 0, fontSize: 15 }}>
-                        Get Started Free →
-                    </button>
-                    <button onClick={onLogin} className="btn" style={{ padding: "12px 32px", fontSize: 15 }}>
-                        Sign In
-                    </button>
-                </div>
-            </div>
+    const ErrBox = ({ msg }) => msg ? (
+        <div style={{ background:t.errBg, border:`1px solid ${t.errBorder}`, borderRadius:9, padding:"10px 14px", fontSize:13, color:"#ef4444", marginBottom:16, display:"flex", gap:8, alignItems:"center" }}>
+            <span>&#9888;</span> {msg}
+        </div>
+    ) : null;
 
-            {/* Features */}
-            <div style={{ padding: "40px 40px 60px", maxWidth: 1000, margin: "0 auto" }}>
-                <div style={{ textAlign: "center", marginBottom: 40 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Features</div>
-                    <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.03em" }}>Everything you need to manage your cloud</div>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 20 }}>
-                    {features.map((f) => (
-                        <div key={f.title} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, padding: 28 }}>
-                            <div style={{ fontSize: 32, marginBottom: 14 }}>{f.icon}</div>
-                            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>{f.title}</div>
-                            <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.6 }}>{f.desc}</div>
+    // ── Auth overlay ──────────────────────────────────────────────────────────
+    const AuthOverlay = () => (
+        <div style={{ position:"fixed", inset:0, zIndex:300, display:"flex", alignItems:"center", justifyContent:"center",
+            background: isDark ? "rgba(4,6,14,0.80)" : "rgba(60,70,160,0.15)", backdropFilter:"blur(22px)" }}
+             onClick={() => setAuthMode(null)}>
+            <div onClick={e => e.stopPropagation()} style={{
+                width:460, maxWidth:"calc(100vw - 32px)", borderRadius:24,
+                background:t.modalBg, border:`1px solid ${t.border}`,
+                boxShadow:t.modalShadow, overflow:"hidden",
+                animation:"slideUp 0.28s cubic-bezier(0.16,1,0.3,1)",
+            }}>
+                <div style={{ height:3, background:"linear-gradient(90deg,#6366f1,#8b5cf6,#06b6d4)" }} />
+
+                <div style={{ padding:"34px 40px 40px" }}>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:30 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                            <div style={{ width:34, height:34, background:"linear-gradient(135deg,#6366f1,#4f46e5)", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 14px rgba(99,102,241,0.4)" }}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+                            </div>
+                            <span style={{ fontSize:16, fontWeight:700, fontFamily:"'Syne',sans-serif", color:t.text }}>CloudOps</span>
                         </div>
-                    ))}
+                        <button onClick={() => setAuthMode(null)} style={{ background:"none", border:"none", cursor:"pointer", color:t.textFaint, fontSize:22, lineHeight:1, padding:"4px 8px", borderRadius:6 }}>&#215;</button>
+                    </div>
+
+                    <div style={{ display:"flex", background:t.surface, border:`1px solid ${t.border}`, borderRadius:12, padding:4, marginBottom:28 }}>
+                        {['login','register'].map(mode => (
+                            <button key={mode} onClick={() => { setLoginError(''); setRegError(''); setAuthMode(mode); }}
+                                    style={{ flex:1, padding:"9px 0", borderRadius:9, fontSize:13.5, fontWeight:700, border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all 0.2s",
+                                        background: authMode===mode ? "linear-gradient(135deg,#6366f1,#4f46e5)" : "transparent",
+                                        color: authMode===mode ? "white" : t.textSub,
+                                        boxShadow: authMode===mode ? "0 4px 14px rgba(99,102,241,0.4)" : "none" }}>
+                                {mode === 'login' ? 'Sign In' : 'Create Account'}
+                            </button>
+                        ))}
+                    </div>
+
+                    {authMode === 'login' ? (
+                        <>
+                            <h2 style={{ fontSize:24, fontWeight:800, fontFamily:"'Syne',sans-serif", color:t.text, margin:"0 0 4px", letterSpacing:"-0.03em" }}>Welcome back</h2>
+                            <p style={{ fontSize:13.5, color:t.textSub, margin:"0 0 24px" }}>Sign in to your cloud management platform</p>
+                            <ErrBox msg={loginError} />
+                            <div style={{ marginBottom:14 }}>
+                                <label style={lbl}>Email address</label>
+                                <input style={inp} type="email" placeholder="you@company.com"
+                                       value={loginEmail} onChange={e => setLoginEmail(e.target.value)}
+                                       onKeyDown={e => e.key==='Enter' && doLogin()} />
+                            </div>
+                            <div style={{ marginBottom:10 }}>
+                                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                                    <label style={{ ...lbl, marginBottom:0 }}>Password</label>
+                                    <span style={{ fontSize:12, color:"#6366f1", cursor:"pointer", fontWeight:600 }}>Forgot password?</span>
+                                </div>
+                                <div style={{ position:"relative" }}>
+                                    <input style={inp} type={showLoginPass?"text":"password"} placeholder="••••••••"
+                                           value={loginPassword} onChange={e => setLoginPassword(e.target.value)}
+                                           onKeyDown={e => e.key==='Enter' && doLogin()} />
+                                    <span onClick={() => setShowLoginPass(!showLoginPass)} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:t.textFaint, fontSize:11.5, fontWeight:700, userSelect:"none" }}>
+                                        {showLoginPass ? "HIDE" : "SHOW"}
+                                    </span>
+                                </div>
+                            </div>
+                            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:22 }}>
+                                <input type="checkbox" id="co-remember" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} style={{ cursor:"pointer", accentColor:"#6366f1" }} />
+                                <label htmlFor="co-remember" style={{ fontSize:13, color:t.textSub, cursor:"pointer" }}>Remember my email</label>
+                            </div>
+                            <button onClick={doLogin} disabled={loginLoading} style={{ width:"100%", padding:"13px", borderRadius:12, background:"linear-gradient(135deg,#6366f1,#4f46e5)", color:"white", fontFamily:"'DM Sans',sans-serif", fontSize:15, fontWeight:700, border:"none", cursor:loginLoading?"not-allowed":"pointer", boxShadow:"0 8px 24px rgba(99,102,241,0.4)", opacity:loginLoading?0.7:1, transition:"all 0.2s" }}>
+                                {loginLoading ? "Signing in…" : "Sign In →"}
+                            </button>
+                            <p style={{ textAlign:"center", marginTop:20, fontSize:13.5, color:t.textSub }}>
+                                New here?{" "}
+                                <span onClick={() => { setLoginError(''); setAuthMode('register'); }} style={{ color:"#6366f1", fontWeight:700, cursor:"pointer" }}>Create a free account</span>
+                            </p>
+                        </>
+                    ) : (
+                        <>
+                            <h2 style={{ fontSize:24, fontWeight:800, fontFamily:"'Syne',sans-serif", color:t.text, margin:"0 0 4px", letterSpacing:"-0.03em" }}>Get started free</h2>
+                            <p style={{ fontSize:13.5, color:t.textSub, margin:"0 0 24px" }}>Create your account — no credit card required</p>
+                            <ErrBox msg={regError} />
+                            <div style={{ marginBottom:13 }}>
+                                <label style={lbl}>Work email</label>
+                                <input style={inp} type="email" placeholder="you@company.com"
+                                       value={regEmail} onChange={e => setRegEmail(e.target.value)} />
+                            </div>
+                            <div style={{ marginBottom:13 }}>
+                                <label style={lbl}>Password <span style={{ fontWeight:400, color:t.textFaint }}>(min 6 chars)</span></label>
+                                <div style={{ position:"relative" }}>
+                                    <input style={inp} type={showRegPass?"text":"password"} placeholder="Create a strong password"
+                                           value={regPassword} onChange={e => setRegPassword(e.target.value)} />
+                                    <span onClick={() => setShowRegPass(!showRegPass)} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:t.textFaint, fontSize:11.5, fontWeight:700, userSelect:"none" }}>
+                                        {showRegPass ? "HIDE" : "SHOW"}
+                                    </span>
+                                </div>
+                            </div>
+                            <div style={{ marginBottom:22 }}>
+                                <label style={lbl}>Confirm password</label>
+                                <div style={{ position:"relative" }}>
+                                    <input style={inp} type={showRegConfirm?"text":"password"} placeholder="Re-enter your password"
+                                           value={regConfirm} onChange={e => setRegConfirm(e.target.value)}
+                                           onKeyDown={e => e.key==='Enter' && doRegister()} />
+                                    <span onClick={() => setShowRegConfirm(!showRegConfirm)} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:t.textFaint, fontSize:11.5, fontWeight:700, userSelect:"none" }}>
+                                        {showRegConfirm ? "HIDE" : "SHOW"}
+                                    </span>
+                                </div>
+                            </div>
+                            <button onClick={doRegister} disabled={regLoading} style={{ width:"100%", padding:"13px", borderRadius:12, background:"linear-gradient(135deg,#6366f1,#4f46e5)", color:"white", fontFamily:"'DM Sans',sans-serif", fontSize:15, fontWeight:700, border:"none", cursor:regLoading?"not-allowed":"pointer", boxShadow:"0 8px 24px rgba(99,102,241,0.4)", opacity:regLoading?0.7:1, transition:"all 0.2s" }}>
+                                {regLoading ? "Creating account…" : "Create Free Account →"}
+                            </button>
+                            <p style={{ fontSize:11, color:t.textFaint, textAlign:"center", marginTop:13, lineHeight:1.6 }}>
+                                By signing up you agree to our Terms of Service and Privacy Policy.
+                            </p>
+                            <p style={{ textAlign:"center", marginTop:8, fontSize:13.5, color:t.textSub }}>
+                                Already have an account?{" "}
+                                <span onClick={() => { setRegError(''); setAuthMode('login'); }} style={{ color:"#6366f1", fontWeight:700, cursor:"pointer" }}>Sign in</span>
+                            </p>
+                        </>
+                    )}
                 </div>
             </div>
+        </div>
+    );
 
-            {/* How it works */}
-            <div style={{ background: "var(--surface)", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)", padding: "60px 40px" }}>
-                <div style={{ maxWidth: 800, margin: "0 auto", textAlign: "center" }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>How it works</div>
-                    <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.03em", marginBottom: 40 }}>Get started in 3 simple steps</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 32 }}>
-                        {steps.map((s) => (
-                            <div key={s.number} style={{ textAlign: "center" }}>
-                                <div style={{ width: 48, height: 48, background: "var(--accent)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 20, fontWeight: 700, color: "white" }}>
-                                    {s.number}
-                                </div>
-                                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>{s.title}</div>
-                                <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.6 }}>{s.desc}</div>
+    // ── Main render ───────────────────────────────────────────────────────────
+    return (
+        <div style={{ minHeight:"100vh", background:t.bg, fontFamily:"'DM Sans',system-ui,sans-serif", color:t.text, overflowX:"hidden", transition:"background 0.35s,color 0.35s" }}>
+
+            <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap');
+                html,body { overflow-x:hidden; margin:0; }
+                @keyframes slideUp { from{opacity:0;transform:translateY(28px) scale(0.96)} to{opacity:1;transform:translateY(0) scale(1)} }
+                @keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:0.45} }
+                .glow-orb { position:absolute; border-radius:50%; filter:blur(90px); pointer-events:none; }
+                .pcard { transition:transform 0.3s ease,box-shadow 0.3s ease; }
+                .pcard:hover { transform:translateY(-6px) !important; box-shadow:0 20px 56px rgba(0,0,0,0.22) !important; }
+            `}</style>
+
+            {authMode && <AuthOverlay />}
+
+            <div className="glow-orb" style={{ width:700, height:700, background:"#6366f1", opacity:isDark?0.16:0.07, top:-280, left:-180 }} />
+            <div className="glow-orb" style={{ width:500, height:500, background:"#8b5cf6", opacity:isDark?0.13:0.05, top:150, right:-160 }} />
+
+            {/* ── NAVBAR ── */}
+            <nav style={{ position:"sticky", top:0, zIndex:100, background:t.navBg, backdropFilter:"blur(24px) saturate(180%)", borderBottom:`1px solid ${t.navBorder}`, padding:"0 48px", height:66, display:"flex", alignItems:"center", justifyContent:"space-between", transition:"background 0.35s,border-color 0.35s" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                        <div style={{ width:36, height:36, background:"linear-gradient(135deg,#6366f1,#4f46e5)", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 16px rgba(99,102,241,0.45)" }}>
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+                        </div>
+                        <span style={{ fontSize:17, fontWeight:700, fontFamily:"'Syne',sans-serif", letterSpacing:"-0.025em", color:t.text }}>OmniOps</span>
+                    </div>
+                    <div style={{ width:1, height:22, background:t.border, margin:"0 4px" }} />
+                    {/* FIX: use color on parent span instead of React.cloneElement */}
+                    <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                        {products.map(p => (
+                            <div key={p.id} style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 11px", borderRadius:7, fontSize:11.5, fontWeight:600, color:p.color, background:`${p.color}0f`, border:`1px solid ${p.color}28`, cursor:"default" }}>
+                                <span style={{ display:"flex", color:p.color }}>{p.icon}</span>
+                                {p.title}
                             </div>
                         ))}
                     </div>
                 </div>
-            </div>
 
-            {/* CTA */}
-            <div style={{ textAlign: "center", padding: "60px 24px" }}>
-                <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.03em", marginBottom: 12 }}>Ready to get started?</div>
-                <div style={{ fontSize: 14, color: "var(--text2)", marginBottom: 28 }}>Join and start monitoring your AWS infrastructure today.</div>
-                <button onClick={onRegister} className="btn-primary" style={{ width: "auto", padding: "12px 32px", marginTop: 0, fontSize: 15 }}>
-                    Create Free Account →
-                </button>
-            </div>
-
-            {/* Footer */}
-            <div style={{ borderTop: "1px solid var(--border)", padding: "20px 40px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ width: 24, height: 24, background: "var(--accent)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                        </svg>
-                    </div>
-                    <span style={{ fontSize: 13, fontWeight: 600 }}>CloudOps</span>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <button onClick={() => setIsDark(!isDark)} style={{ width:38, height:38, borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", background:t.surface, border:`1px solid ${t.border}`, cursor:"pointer", transition:"all 0.2s" }}>
+                        {isDark
+                            ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={t.textSub} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                            : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={t.textSub} strokeWidth="2" strokeLinecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                        }
+                    </button>
+                    <div style={{ width:1, height:22, background:t.border }} />
+                    <button onClick={openLogin} style={{ padding:"8px 18px", borderRadius:10, fontSize:13.5, fontWeight:600, background:"transparent", color:t.textSub, border:`1px solid ${t.border}`, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all 0.2s" }}>Sign In</button>
+                    <button onClick={openRegister} style={{ padding:"8px 20px", borderRadius:10, fontSize:13.5, fontWeight:700, background:"linear-gradient(135deg,#6366f1,#4f46e5)", color:"white", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", boxShadow:"0 4px 18px rgba(99,102,241,0.42)" }}>Get Started →</button>
                 </div>
-                <div style={{ fontSize: 12, color: "var(--text3)" }}>© 2026 CloudOps. All rights reserved.</div>
-            </div>
+            </nav>
+
+            {/* ── HERO ── */}
+            <section style={{ textAlign:"center", padding:"112px 24px 90px", position:"relative" }}>
+                <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:isDark?"rgba(99,102,241,0.1)":"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.28)", borderRadius:100, padding:"6px 18px", fontSize:12, fontWeight:600, color:"#818cf8", marginBottom:32, letterSpacing:"0.04em", textTransform:"uppercase" }}>
+                    <span style={{ width:7, height:7, borderRadius:"50%", background:"#6366f1", boxShadow:"0 0 10px #6366f1", display:"inline-block", animation:"pulse 2s ease-in-out infinite" }} />
+                    All-in-One Cloud Operations Platform
+                </div>
+                <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:"clamp(44px,6vw,72px)", fontWeight:800, letterSpacing:"-0.045em", lineHeight:1.04, margin:"0 auto 28px", maxWidth:800, color:t.text }}>
+                    One platform for<br />
+                    <span style={{ background:"linear-gradient(135deg,#6366f1 0%,#8b5cf6 50%,#06b6d4 100%)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>
+                        all your cloud ops
+                    </span>
+                </h1>
+                <p style={{ fontSize:18, color:t.textSub, maxWidth:540, margin:"0 auto 44px", lineHeight:1.75, fontWeight:300 }}>
+                    CloudOps, SecOps, FinOps, AIOps and RFP automation —
+                    everything your team needs to manage, secure and optimise your cloud.
+                </p>
+                <div style={{ display:"flex", gap:14, justifyContent:"center", alignItems:"center", marginBottom:80 }}>
+                    <button onClick={openRegister} style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"14px 30px", borderRadius:12, background:"linear-gradient(135deg,#6366f1,#4f46e5)", color:"white", fontFamily:"'DM Sans',sans-serif", fontSize:15, fontWeight:700, border:"none", cursor:"pointer", boxShadow:"0 10px 36px rgba(99,102,241,0.45)" }}>
+                        Get Started Free <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    </button>
+                    <button onClick={openLogin} style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"14px 28px", borderRadius:12, background:t.surface, color:t.textSub, fontFamily:"'DM Sans',sans-serif", fontSize:15, fontWeight:600, border:`1px solid ${t.border}`, cursor:"pointer" }}>
+                        Sign In
+                    </button>
+                </div>
+                <div style={{ display:"flex", gap:16, justifyContent:"center", flexWrap:"wrap", maxWidth:760, margin:"0 auto" }}>
+                    {stats.map(s => (
+                        <div key={s.label} style={{ flex:"1", minWidth:155, background:t.surface, border:`1px solid ${t.border}`, borderRadius:18, padding:"24px 20px", textAlign:"center", boxShadow:t.cardShadow, position:"relative", overflow:"hidden", transition:"all 0.3s" }}>
+                            <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:`linear-gradient(90deg,transparent,${s.color}70,transparent)` }} />
+                            <div style={{ fontSize:28, marginBottom:10 }}>{s.icon}</div>
+                            <div style={{ fontSize:32, fontWeight:800, fontFamily:"'Syne',sans-serif", letterSpacing:"-0.04em", color:s.color, lineHeight:1, marginBottom:6 }}>{s.value}</div>
+                            <div style={{ fontSize:12.5, color:t.textSub, fontWeight:500 }}>{s.label}</div>
+                        </div>
+                    ))}
+                </div>
+            </section>
+
+            {/* ── PRODUCTS ── */}
+            <section style={{ padding:"60px 48px 90px", maxWidth:1240, margin:"0 auto" }}>
+                <div style={{ textAlign:"center", marginBottom:60 }}>
+                    <div style={{ fontSize:10.5, fontWeight:700, color:t.textFaint, textTransform:"uppercase", letterSpacing:"0.16em", marginBottom:14 }}>Platform Suite</div>
+                    <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:42, fontWeight:800, letterSpacing:"-0.035em", marginBottom:14, lineHeight:1.12, color:t.text }}>Five powerful tools.<br />One unified platform.</h2>
+                    <p style={{ fontSize:16, color:t.textSub, maxWidth:450, margin:"0 auto", lineHeight:1.75, fontWeight:300 }}>Each tool is built for a specific cloud operations use case, all from a single login.</p>
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:18, marginBottom:18 }}>
+                    {products.slice(0,3).map(p => (
+                        <div key={p.id} className="pcard" style={{ background:t.surface, border:`1px solid ${t.border}`, borderRadius:22, padding:30, position:"relative", overflow:"hidden", boxShadow:t.cardShadow }}>
+                            <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:p.gradient }} />
+                            <div style={{ width:50, height:50, borderRadius:14, background:p.bg, border:`1px solid ${p.color}28`, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:20, color:p.color }}>{p.icon}</div>
+                            <div style={{ fontSize:19, fontWeight:700, fontFamily:"'Syne',sans-serif", marginBottom:4, color:t.text }}>{p.title}</div>
+                            <div style={{ fontSize:10.5, fontWeight:700, color:p.color, marginBottom:14, textTransform:"uppercase", letterSpacing:"0.1em" }}>{p.tagline}</div>
+                            <div style={{ fontSize:13.5, color:t.textSub, lineHeight:1.75, marginBottom:22, fontWeight:300 }}>{p.desc}</div>
+                            <div style={{ display:"flex", flexDirection:"column", gap:9, marginBottom:22 }}>
+                                {p.features.map(f => (
+                                    <div key={f} style={{ display:"flex", alignItems:"center", gap:10, fontSize:12.5, color:t.textSub }}>
+                                        <div style={{ width:18, height:18, borderRadius:"50%", background:p.bg, border:`1px solid ${p.color}35`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                                            <div style={{ width:6, height:6, borderRadius:"50%", background:p.color }} />
+                                        </div>
+                                        {f}
+                                    </div>
+                                ))}
+                            </div>
+                            {p.id !== "cloudops"
+                                ? <div style={{ display:"inline-flex", alignItems:"center", gap:6, background:`${p.color}12`, border:`1px solid ${p.color}28`, borderRadius:20, padding:"5px 14px", fontSize:11, fontWeight:700, color:p.color }}>&#x1F680; Coming Soon</div>
+                                : <button onClick={openRegister} style={{ display:"inline-flex", alignItems:"center", gap:6, background:p.gradient, border:"none", borderRadius:10, padding:"9px 18px", fontSize:13, fontWeight:700, color:"white", cursor:"pointer", boxShadow:`0 6px 20px ${p.glow}` }}>Get Started →</button>
+                            }
+                        </div>
+                    ))}
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:18, maxWidth:820, margin:"0 auto" }}>
+                    {products.slice(3).map(p => (
+                        <div key={p.id} className="pcard" style={{ background:t.surface, border:`1px solid ${t.border}`, borderRadius:22, padding:28, position:"relative", overflow:"hidden", boxShadow:t.cardShadow }}>
+                            <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:p.gradient }} />
+                            <div style={{ display:"flex", alignItems:"flex-start", gap:18 }}>
+                                <div style={{ width:50, height:50, borderRadius:14, background:p.bg, border:`1px solid ${p.color}28`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, color:p.color }}>{p.icon}</div>
+                                <div style={{ flex:1 }}>
+                                    <div style={{ fontSize:17, fontWeight:700, fontFamily:"'Syne',sans-serif", marginBottom:3, color:t.text }}>{p.title}</div>
+                                    <div style={{ fontSize:10.5, fontWeight:700, color:p.color, marginBottom:10, textTransform:"uppercase", letterSpacing:"0.1em" }}>{p.tagline}</div>
+                                    <div style={{ fontSize:13, color:t.textSub, lineHeight:1.75, marginBottom:14, fontWeight:300 }}>{p.desc}</div>
+                                    <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
+                                        {p.features.map(f => <div key={f} style={{ display:"inline-flex", alignItems:"center", gap:5, background:`${p.color}0e`, border:`1px solid ${p.color}22`, borderRadius:6, padding:"3px 10px", fontSize:11, color:p.color, fontWeight:600 }}>{f}</div>)}
+                                    </div>
+                                    <div style={{ marginTop:14, display:"inline-flex", alignItems:"center", gap:6, background:`${p.color}12`, border:`1px solid ${p.color}28`, borderRadius:20, padding:"4px 12px", fontSize:11, fontWeight:700, color:p.color }}>&#x1F680; Coming Soon</div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </section>
+
+            {/* ── HOW IT WORKS ── */}
+            <section style={{ padding:"90px 48px", borderTop:`1px solid ${t.secBorder}`, borderBottom:`1px solid ${t.secBorder}`, background:t.secBg, position:"relative", transition:"all 0.35s" }}>
+                <div className="glow-orb" style={{ width:500, height:500, background:"#6366f1", opacity:isDark?0.13:0.05, bottom:-200, right:-100 }} />
+                <div style={{ maxWidth:920, margin:"0 auto", textAlign:"center" }}>
+                    <div style={{ fontSize:10.5, fontWeight:700, color:t.textFaint, textTransform:"uppercase", letterSpacing:"0.16em", marginBottom:14 }}>How it works</div>
+                    <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:38, fontWeight:800, letterSpacing:"-0.035em", marginBottom:56, lineHeight:1.12, color:t.text }}>Up and running in 3 steps</h2>
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:22, position:"relative" }}>
+                        <div style={{ position:"absolute", top:42, left:"18%", right:"18%", height:1, background:"linear-gradient(90deg,rgba(99,102,241,0),rgba(99,102,241,0.35),rgba(99,102,241,0))", zIndex:0 }} />
+                        {[
+                            { n:"01", title:"Register",       desc:"Create your free account in seconds. No credit card required.", emoji:"👤" },
+                            { n:"02", title:"Connect Cloud",  desc:"Securely link your AWS, GCP or Azure account with one click.",   emoji:"☁️" },
+                            { n:"03", title:"Scan & Monitor", desc:"Get real-time resource visibility and instant alert automation.", emoji:"📊" },
+                        ].map(s => (
+                            <div key={s.n} style={{ background:t.surface, border:`1px solid ${t.border}`, borderRadius:18, padding:"32px 26px", textAlign:"center", position:"relative", zIndex:1, boxShadow:t.cardShadow }}>
+                                <div style={{ width:60, height:60, borderRadius:"50%", background:"linear-gradient(135deg,#6366f1,#4f46e5)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 18px", fontSize:24, boxShadow:"0 10px 28px rgba(99,102,241,0.42)" }}>{s.emoji}</div>
+                                <div style={{ fontSize:10, fontWeight:800, color:"#6366f1", letterSpacing:"0.12em", marginBottom:10, textTransform:"uppercase" }}>{s.n}</div>
+                                <div style={{ fontSize:17, fontWeight:700, fontFamily:"'Syne',sans-serif", marginBottom:10, color:t.text }}>{s.title}</div>
+                                <div style={{ fontSize:13.5, color:t.textSub, lineHeight:1.7, fontWeight:300 }}>{s.desc}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* ── CTA ── */}
+            <section style={{ textAlign:"center", padding:"110px 24px", position:"relative", overflow:"hidden" }}>
+                <div className="glow-orb" style={{ width:700, height:400, background:"#6366f1", opacity:isDark?0.13:0.05, bottom:-120, left:"50%", transform:"translateX(-50%)" }} />
+                <div style={{ position:"relative", zIndex:1 }}>
+                    <div style={{ fontSize:10.5, fontWeight:700, color:t.textFaint, textTransform:"uppercase", letterSpacing:"0.16em", marginBottom:16 }}>Ready to go?</div>
+                    <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:"clamp(36px,5vw,54px)", fontWeight:800, letterSpacing:"-0.04em", marginBottom:18, lineHeight:1.08, color:t.text }}>Take control of<br />your entire cloud</h2>
+                    <p style={{ fontSize:17, color:t.textSub, fontWeight:300, maxWidth:440, margin:"0 auto 40px" }}>Join thousands of teams managing their cloud operations from one place.</p>
+                    <div style={{ display:"flex", gap:14, justifyContent:"center" }}>
+                        <button onClick={openRegister} style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"15px 34px", borderRadius:13, background:"linear-gradient(135deg,#6366f1,#4f46e5)", color:"white", fontFamily:"'DM Sans',sans-serif", fontSize:16, fontWeight:700, border:"none", cursor:"pointer", boxShadow:"0 12px 40px rgba(99,102,241,0.48)" }}>
+                            Create Free Account <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+                        </button>
+                        <button onClick={openLogin} style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"15px 28px", borderRadius:13, background:t.surface, color:t.textSub, fontFamily:"'DM Sans',sans-serif", fontSize:16, fontWeight:600, border:`1px solid ${t.border}`, cursor:"pointer" }}>Sign In</button>
+                    </div>
+                </div>
+            </section>
+
+            {/* ── FOOTER ── */}
+            <footer style={{ borderTop:`1px solid ${t.secBorder}`, padding:"28px 48px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                    <div style={{ width:28, height:28, background:"linear-gradient(135deg,#6366f1,#4f46e5)", borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+                    </div>
+                    <span style={{ fontSize:14, fontWeight:700, fontFamily:"'Syne',sans-serif", color:t.text }}>OmniOps</span>
+                </div>
+                <div style={{ display:"flex", gap:22 }}>
+                    {products.map(p => <span key={p.id} style={{ fontSize:12, color:p.color, fontWeight:600, opacity:0.65 }}>{p.title}</span>)}
+                </div>
+                <div style={{ fontSize:12, color:t.footerText }}>&#169; 2026 OmniOps Platform. All rights reserved.</div>
+            </footer>
         </div>
     );
 };
@@ -3248,6 +3550,7 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
     });
     const [appSection, setAppSection] = useState(initialSection || "main");
     const [sectionHistory, setSectionHistory] = useState([]);
+    const [activeApp, setActiveApp] = useState("cloudops");
 
     const navigateTo = (newSection) => {
         setSectionHistory(prev => [...prev, appSection]);
@@ -3406,164 +3709,326 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
     const NAV_ITEMS = getNavItems(selectedCloud || "default");
     const sectionTitle = NAV_ITEMS.find((n) => n.id === section)?.label || "Overview";
 
-    return (
-        <div style={{ display: "flex", minHeight: "100vh" }}>
-            <nav style={{
-                width: 220, minHeight: "100vh", background: "var(--surface)",
-                borderRight: "1px solid var(--border)", display: "flex",
-                flexDirection: "column", position: "sticky", top: 0, height: "100vh",
-                overflowY: "auto", flexShrink: 0,
-            }}>
-                <div style={{ padding: "20px 16px 16px", borderBottom: "1px solid var(--border)" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                        <div style={{ width: 28, height: 28, background: "var(--accent)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
-                        </div>
-                        <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "-0.02em" }}>CloudOps</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", background: "var(--accent-bg)", borderRadius: 6, fontSize: 12, fontWeight: 600, color: "var(--accent)" }}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" /></svg>
-                        Cloud Provider
-                    </div>
-                </div>
+    const APP_ITEMS = [
+        {
+            id: "cloudops", label: "Cloud", color: "#6366f1",
+            icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+        },
+        {
+            id: "secops", label: "SecOps", color: "#ef4444",
+            icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        },
+        {
+            id: "finops", label: "FinOps", color: "#10b981",
+            icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        },
+        {
+            id: "aiops", label: "AIOps", color: "#8b5cf6",
+            icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+        },
+        {
+            id: "rfp", label: "RFP", color: "#f59e0b",
+            icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        },
+    ];
 
-                <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
-                    <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3 }}>Account ID</div>
-                    <div style={{ fontFamily: "monospace", fontSize: 11, color: "var(--text2)" }}>{accountId || "Not connected"}</div>
-                    {scanMeta && <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 2 }}>{scanMeta.duration}s · {scanMeta.region}</div>}
-                </div>
-
-                <div style={{ padding: "8px", flex: 1 }}>
-                    {["Resources", "Operations"].map((sectionName) => (
-                        <div key={sectionName}>
-                            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em", padding: "12px 8px 6px" }}>{sectionName}</div>
-                            {NAV_ITEMS.filter((n) => n.section === sectionName).map((nav) => (
-                                <button key={nav.id}
-                                        onClick={() => {
-                                            setSection(nav.id);
-                                            localStorage.setItem('cloudops-section', nav.id);
-                                            setAppSection("main");
-                                            setSectionHistory([]);
-                                        }}
-                                        style={{
-                                            display: "flex", alignItems: "center", gap: 8,
-                                            padding: "8px 10px", borderRadius: 6, cursor: "pointer",
-                                            fontSize: 13, width: "100%", textAlign: "left",
-                                            border: "none", fontFamily: "inherit",
-                                            background: section === nav.id ? "var(--accent-bg)" : "transparent",
-                                            color: section === nav.id ? "var(--accent)" : "var(--text2)",
-                                            fontWeight: section === nav.id ? 500 : 400,
-                                        }}>
-                                    <span style={{ fontSize: 14, width: 18, textAlign: "center" }}>{nav.icon}</span>
-                                    {nav.label}
-                                    {nav.id === "alerts" && activeAlertCount > 0 && (
-                                                <span style={{
-                                                    marginLeft: "auto",
-                                                    background: "var(--red)",
-                                                    color: "white",
-                                                    borderRadius: 20,
-                                                    fontSize: 10,
-                                                    fontWeight: 700,
-                                                    padding: "1px 6px",
-                                                    minWidth: 18,
-                                                    textAlign: "center",
-                                                }}>
-                                                    {activeAlertCount}
-                                                </span>
-                                            )}
-                                            {nav.id === "tickets" && newTicketCount > 0 && (
-                                                <span style={{
-                                                    marginLeft: "auto",
-                                                    background: "var(--red)",
-                                                    color: "white",
-                                                    borderRadius: 20,
-                                                    fontSize: 10,
-                                                    fontWeight: 700,
-                                                    padding: "1px 6px",
-                                                    minWidth: 18,
-                                                    textAlign: "center",
-                                                }}>
-                                                    {newTicketCount}
-                                                </span>
-                                            )}
-                                </button>
-                            ))}
-                        </div>
-                    ))}
-                </div>
-
-                <div style={{ padding: "8px 8px 0" }}>
-                    <button
-                        onClick={() => navigateTo("editCredentials")}
-                        style={{
-                            display: "flex", alignItems: "center", gap: 8,
-                            padding: "8px 10px", borderRadius: 6, cursor: "pointer",
-                            fontSize: 13, width: "100%", textAlign: "left",
-                            border: "none", background: "transparent",
-                            color: "var(--text2)", fontFamily: "inherit",
-                        }}
-                        onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                    >
-                        <span style={{ fontSize: 14, width: 18, textAlign: "center" }}>⚙</span>
-                        Edit Credentials
-                    </button>
-                </div>
-
-                <div style={{ padding: "12px 8px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 4 }}>
-<button onClick={() => { onSwitchCloud(); navigateTo("cloudSelect"); }} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 13, width: "100%", textAlign: "left", border: "none", background: "transparent", color: "var(--text2)", fontFamily: "inherit" }}
-                            onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-                            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                    >
-                        <span style={{ fontSize: 14, width: 18, textAlign: "center" }}>☁</span> Switch Provider
-                    </button>
-                    <button onClick={onSignOut} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 13, width: "100%", textAlign: "left", border: "none", background: "transparent", color: "var(--red)", fontFamily: "inherit" }}
-                            onMouseEnter={e => e.currentTarget.style.background = "var(--red-bg)"}
-                            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                    >
-                        <span style={{ fontSize: 14, width: 18, textAlign: "center" }}>→</span> Sign Out
-                    </button>
-                </div>
-            </nav>
-
-            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-                <div style={{ height: 52, background: "var(--surface)", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", padding: "0 24px", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 50 }}>
-<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        {appSection !== "main" && (
-                            <button
-                                onClick={navigateBack}
-                                style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 6, background: "var(--surface2)", border: "1px solid var(--border)", cursor: "pointer", color: "var(--text2)" }}
-                            >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                    <polyline points="15 18 9 12 15 6"/>
-                                </svg>
-                            </button>
-                        )}
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        {accountId && (
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 12px", background: "var(--green-bg)", border: "1px solid var(--green-border, #a7f3d0)", borderRadius: 20, fontSize: 11, fontWeight: 600, color: "var(--green)" }}>
-                                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--green)" }} />
-                                {accountId}
-                            </div>
-                        )}
-                        <button
-                            className="btn btn-sm"
-                            onClick={() => { onSwitchCloud(); navigateTo("cloudSelect"); }}
-                            style={{ display: "flex", alignItems: "center", gap: 6 }}
-                        >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
-                            </svg>
-                            Switch Cloud
-                        </button>
-                        <button className="btn btn-sm" onClick={() => { onNewScan(); navigateTo("regionSelection"); }}>↺ New Scan</button>
-                    </div>
-                </div>
-                <div style={{ flex: 1, padding: 24, overflowY: "auto" }}>
-                    {renderContent()}
+    const ComingSoonContent = ({ appName, color, description }) => (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 16, padding: 40 }}>
+            <div style={{ width: 64, height: 64, borderRadius: 16, background: `${color}20`, border: `2px solid ${color}40`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ fontSize: 32 }}>
+                    {appName === "SecOps" ? "🔒" : appName === "FinOps" ? "💰" : appName === "AIOps" ? "🤖" : "📄"}
                 </div>
             </div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "var(--text)", letterSpacing: "-0.02em" }}>{appName}</div>
+            <div style={{ fontSize: 14, color: "var(--text2)", textAlign: "center", maxWidth: 400, lineHeight: 1.7 }}>{description}</div>
+            <div style={{ background: `${color}15`, border: `1px solid ${color}40`, borderRadius: 20, padding: "6px 20px", fontSize: 12, fontWeight: 600, color: color }}>
+                Coming Soon
+            </div>
+        </div>
+    );
+
+    return (
+        <div style={{ display: "flex", minHeight: "100vh", position: "relative" }}>
+
+            {/* ── Far-left App Icon Strip — FIXED, never moves ── */}
+            <div style={{
+                width: 56,
+                background: "var(--surface)",
+                borderRight: "1px solid var(--border)",
+                display: "flex", flexDirection: "column",
+                alignItems: "center", padding: "14px 0",
+                gap: 4,
+                position: "fixed",   /* FIXED to viewport, always visible */
+                top: 0, left: 0,
+                height: "100vh",
+                flexShrink: 0, zIndex: 60,
+            }}>
+                {/* Logo */}
+                <div style={{ width: 34, height: 34, background: "linear-gradient(135deg, #6366f1, #4f46e5)", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12, boxShadow: "0 4px 12px rgba(99,102,241,0.3)" }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+                        <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+                    </svg>
+                </div>
+
+                {/* Divider */}
+                <div style={{ width: 28, height: 1, background: "var(--border)", marginBottom: 8 }} /> {/* was: #1e2a3a */}
+
+                {/* App icons */}
+                {APP_ITEMS.map((app) => {
+                    const isActive = activeApp === app.id;
+                    return (
+                        <div
+                            key={app.id}
+                            onClick={() => setActiveApp(app.id)}
+                            title={app.label}
+                            style={{
+                                width: 42, height: 42,
+                                borderRadius: 10,
+                                display: "flex", flexDirection: "column",
+                                alignItems: "center", justifyContent: "center",
+                                cursor: "pointer", gap: 3,
+                                background: isActive ? `${app.color}15` : "transparent", /* was: ${app.color}25 */
+                                border: `1.5px solid ${isActive ? app.color : "transparent"}`,
+                                color: isActive ? app.color : "var(--text3)",             /* was: #64748b */
+                                transition: "all 0.15s ease",
+                                position: "relative",
+                            }}
+                            onMouseEnter={e => {
+                                if (!isActive) {
+                                    e.currentTarget.style.background = "var(--surface2)"; /* was: rgba(255,255,255,0.06) */
+                                    e.currentTarget.style.color = "var(--text)";          /* was: #fff */
+                                }
+                            }}
+                            onMouseLeave={e => {
+                                if (!isActive) {
+                                    e.currentTarget.style.background = "transparent";
+                                    e.currentTarget.style.color = "var(--text3)";         /* was: #64748b */
+                                }
+                            }}
+                        >
+                            {/* Active indicator */}
+                            {isActive && (
+                                <div style={{
+                                    position: "absolute", left: -1, top: "50%",
+                                    transform: "translateY(-50%)",
+                                    width: 3, height: 20,
+                                    background: app.color,
+                                    borderRadius: "0 3px 3px 0",
+                                }} />
+                            )}
+                            {app.icon}
+                            <span style={{ fontSize: 8, fontWeight: 600, letterSpacing: "0.02em" }}>
+                            {app.label}
+                        </span>
+                        </div>
+                    );
+                })}
+
+                {/* Spacer */}
+                <div style={{ flex: 1 }} />
+
+                {/* Sign out */}
+                <div
+                    onClick={onSignOut}
+                    title="Sign Out"
+                    style={{ width: 42, height: 42, borderRadius: 10, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", gap: 3, color: "var(--red)", transition: "all 0.15s" }} /* was: color: #ef4444 */
+                    onMouseEnter={e => { e.currentTarget.style.background = "var(--red-bg)"; }}  /* was: rgba(239,68,68,0.1) */
+                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+                >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                        <polyline points="16 17 21 12 16 7"/>
+                        <line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                    <span style={{ fontSize: 8, fontWeight: 600 }}>Exit</span>
+                </div>
+            </div>
+
+            {/* Spacer to offset fixed 56px strip — pushes all content right */}
+            <div style={{ width: 56, flexShrink: 0 }} />
+
+            {/* ── CloudOps App (nav sidebar + main content) ── */}
+            {activeApp === "cloudops" && (
+                <>
+                    <nav style={{
+                        width: 220,
+                        background: "var(--surface)",
+                        borderRight: "1px solid var(--border)",
+                        display: "flex", flexDirection: "column",
+                        position: "sticky", top: 0,   /* sticky within scroll, not fixed */
+                        height: "100vh",
+                        overflowY: "auto", flexShrink: 0,
+                    }}>
+                        {/* Top header */}
+                        <div style={{ padding: "20px 16px 16px", borderBottom: "1px solid var(--border)" }}> {/* was: #243049 */}
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                                <div style={{ width: 28, height: 28, background: "var(--accent)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
+                                </div>
+                                <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--text)" }}>CloudOps</span> {/* was: white */}
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", background: "var(--accent-bg)", borderRadius: 6, fontSize: 12, fontWeight: 600, color: "var(--accent)" }}> {/* was: rgba(99,102,241,0.15) / #818cf8 */}
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" /></svg>
+                                Cloud Provider
+                            </div>
+                        </div>
+
+                        {/* Account ID */}
+                        <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)" }}> {/* was: #243049 */}
+                            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3 }}>Account ID</div> {/* was: #64748b */}
+                            <div style={{ fontFamily: "monospace", fontSize: 11, color: "var(--text2)" }}>{accountId || "Not connected"}</div> {/* was: #94a3b8 */}
+                            {scanMeta && <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 2 }}>{scanMeta.duration}s · {scanMeta.region}</div>} {/* was: #64748b */}
+                        </div>
+
+                        {/* Nav items */}
+                        <div style={{ padding: "8px", flex: 1 }}>
+                            {["Resources", "Operations"].map((sectionName) => (
+                                <div key={sectionName}>
+                                    <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em", padding: "12px 8px 6px" }}>{sectionName}</div> {/* was: #64748b */}
+                                    {NAV_ITEMS.filter((n) => n.section === sectionName).map((nav) => (
+                                        <button key={nav.id}
+                                                onClick={() => {
+                                                    setSection(nav.id);
+                                                    localStorage.setItem('cloudops-section', nav.id);
+                                                    setAppSection("main");
+                                                    setSectionHistory([]);
+                                                }}
+                                                style={{
+                                                    display: "flex", alignItems: "center", gap: 8,
+                                                    padding: "8px 10px", borderRadius: 6, cursor: "pointer",
+                                                    fontSize: 13, width: "100%", textAlign: "left",
+                                                    border: "none", fontFamily: "inherit",
+                                                    background: section === nav.id && appSection === "main" ? "var(--accent-bg)" : "transparent", /* was: rgba(99,102,241,0.15) */
+                                                    color: section === nav.id && appSection === "main" ? "var(--accent)" : "var(--text2)",        /* was: #818cf8 : #94a3b8 */
+                                                    fontWeight: section === nav.id && appSection === "main" ? 600 : 400,
+                                                    position: "relative",
+                                                    transition: "all 0.15s",
+                                                }}>
+                                            {section === nav.id && appSection === "main" && (
+                                                <div style={{ position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", width: 3, height: 16, background: "var(--accent)", borderRadius: "0 3px 3px 0" }} /> /* was: #6366f1 */
+                                            )}
+                                            <span style={{ fontSize: 14, width: 18, textAlign: "center" }}>{nav.icon}</span>
+                                            <span style={{ flex: 1 }}>{nav.label}</span>
+                                            {nav.id === "alerts" && activeAlertCount > 0 && (
+                                                <span style={{ marginLeft: "auto", background: "var(--red)", color: "white", borderRadius: 20, fontSize: 10, fontWeight: 700, padding: "1px 6px", minWidth: 18, textAlign: "center" }}> {/* was: #ef4444 */}
+                                                    {activeAlertCount}
+                                            </span>
+                                            )}
+                                            {nav.id === "tickets" && newTicketCount > 0 && (
+                                                <span style={{ marginLeft: "auto", background: "var(--red)", color: "white", borderRadius: 20, fontSize: 10, fontWeight: 700, padding: "1px 6px", minWidth: 18, textAlign: "center" }}> {/* was: #ef4444 */}
+                                                    {newTicketCount}
+                                            </span>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Edit Credentials */}
+                        <div style={{ padding: "8px 8px 0" }}>
+                            <button
+                                onClick={() => navigateTo("editCredentials")}
+                                style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 13, width: "100%", textAlign: "left", border: "none", background: "transparent", color: "var(--text2)", fontFamily: "inherit", transition: "all 0.15s" }} /* was: #94a3b8 */
+                                onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}  /* was: rgba(255,255,255,0.06) */
+                                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                            >
+                                <span style={{ fontSize: 14, width: 18, textAlign: "center" }}>⚙</span>
+                                Edit Credentials
+                            </button>
+                        </div>
+
+                        {/* Switch Provider */}
+                        <div style={{ padding: "12px 8px", borderTop: "1px solid var(--border)" }}> {/* was: #243049 */}
+                            <button
+                                onClick={() => { onSwitchCloud(); navigateTo("cloudSelect"); }}
+                                style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 13, width: "100%", textAlign: "left", border: "none", background: "transparent", color: "var(--text2)", fontFamily: "inherit", transition: "all 0.15s" }} /* was: #94a3b8 */
+                                onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}  /* was: rgba(255,255,255,0.06) */
+                                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                            >
+                                <span style={{ fontSize: 14, width: 18, textAlign: "center" }}>☁</span> Switch Provider
+                            </button>
+                        </div>
+                    </nav>
+
+                    {/* Main content */}
+                    <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+                        <div style={{ height: 52, background: "var(--surface)", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", padding: "0 24px", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 50 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                {appSection !== "main" && (
+                                    <button onClick={navigateBack} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 6, background: "var(--surface2)", border: "1px solid var(--border)", cursor: "pointer", color: "var(--text2)" }}>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                                    </button>
+                                )}
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                {accountId && (
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 12px", background: "var(--green-bg)", border: "1px solid var(--green-border, #a7f3d0)", borderRadius: 20, fontSize: 11, fontWeight: 600, color: "var(--green)" }}>
+                                        <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--green)" }} />
+                                        {accountId}
+                                    </div>
+                                )}
+                                <button className="btn btn-sm" onClick={() => { onSwitchCloud(); navigateTo("cloudSelect"); }} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+                                    Switch Provider
+                                </button>
+                                <button className="btn btn-sm" onClick={() => { onNewScan(); navigateTo("regionSelection"); }}>↺ New Scan</button>
+                            </div>
+                        </div>
+                        <div style={{ flex: 1, padding: 24, overflowY: "auto" }}>
+                            {renderContent()}
+                        </div>
+                    </div>
+                </>
+            )}
+
+            {/* ── Other Apps (Coming Soon) ── */}
+            {activeApp !== "cloudops" && (() => {
+                // spacer already rendered above
+                const app = APP_ITEMS.find(a => a.id === activeApp);
+                const appDetails = {
+                    secops: { name: "SecOps", desc: "Security Operations — Threat detection, vulnerability scanning, IAM audit, compliance reports and security incident management." },
+                    finops: { name: "FinOps", desc: "Cloud Cost Management — Cost analysis, budget tracking, savings recommendations, cost allocation and monthly billing reports." },
+                    aiops: { name: "AIOps", desc: "AI-Powered Operations — Anomaly detection, predictive analytics, auto-remediation and root cause analysis using machine learning." },
+                    rfp: { name: "RFP Generator", desc: "Document Automation — Generate professional RFP documents from your cloud infrastructure data using AI-powered templates." },
+                };
+                const detail = appDetails[activeApp];
+                return (
+                    <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+                        {/* Header */}
+                        <div style={{ height: 52, background: "var(--surface)", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", padding: "0 24px", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 50 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                <div style={{ width: 8, height: 8, borderRadius: "50%", background: app.color }} />
+                                <span style={{ fontSize: 15, fontWeight: 600, color: "var(--text)" }}>{detail.name}</span>
+                            </div>
+                            <div style={{ background: `${app.color}15`, border: `1px solid ${app.color}40`, borderRadius: 20, padding: "4px 14px", fontSize: 11, fontWeight: 600, color: app.color }}>
+                                Coming Soon
+                            </div>
+                        </div>
+                        {/* Coming soon content */}
+                        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20, padding: 40, background: "var(--bg)" }}>
+                            <div style={{ width: 80, height: 80, borderRadius: 20, background: `${app.color}15`, border: `2px solid ${app.color}30`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <div style={{ color: app.color, transform: "scale(2)" }}>{app.icon}</div>
+                            </div>
+                            <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.03em", color: "var(--text)" }}>{detail.name}</div>
+                            <div style={{ fontSize: 15, color: "var(--text2)", textAlign: "center", maxWidth: 480, lineHeight: 1.7 }}>{detail.desc}</div>
+                            <div style={{ background: `${app.color}15`, border: `1px solid ${app.color}40`, borderRadius: 20, padding: "8px 24px", fontSize: 13, fontWeight: 600, color: app.color }}>
+                                🚀 Coming Soon
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, maxWidth: 480, width: "100%", marginTop: 12 }}>
+                                {(activeApp === "secops" ? ["Threat Detection","Vulnerability Scan","IAM Audit"] :
+                                    activeApp === "finops" ? ["Cost Analysis","Budget Alerts","Savings Plans"] :
+                                        activeApp === "aiops" ? ["Anomaly Detection","Predictions","Auto-Remediation"] :
+                                            ["AI Templates","PDF Export","Cloud Data"]).map(feature => (
+                                    <div key={feature} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "14px", textAlign: "center" }}>
+                                        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)" }}>{feature}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
         </div>
     );
 };
