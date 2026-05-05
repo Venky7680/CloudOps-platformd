@@ -4832,6 +4832,12 @@ export default function App() {
                 await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
 
                 const pollRes = await fetch(`${BACKEND}/api/scan/status/${jobId}`);
+
+// If 500 or 404 after scan started, job file was deleted — scan is done
+                if (pollRes.status === 500 || pollRes.status === 404) {
+                    continue; // keep polling, next poll will either find it or timeout
+                }
+
                 const text = await pollRes.text();
                 if (!text) continue;
                 let pollJson;
