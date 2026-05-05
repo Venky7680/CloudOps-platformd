@@ -182,11 +182,12 @@ def scan_status(job_id):
     if job["status"] == "error":
         delete_job(job_id)
         return jsonify({"status": "error", "error": job["error"]}), 500
-
     if job["status"] == "done":
         result = job["result"]
         delete_job(job_id)
-        return jsonify({"status": "done", "result": result})
+        import json
+        response_str = json.dumps({"status": "done", "result": result}, default=json_serial)
+        return app.response_class(response_str, mimetype='application/json')
 
     return jsonify({"error": "Unknown job status"}), 500
 

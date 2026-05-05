@@ -74,6 +74,20 @@ def init_db():
             INSERT INTO users (email, password_hash, role)
             VALUES ('admin@cloudops.com', 'CloudOps@2024', 'admin')
         """)
+
+        cursor.execute("""
+            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='azure_credentials' AND xtype='U')
+            CREATE TABLE azure_credentials (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                email NVARCHAR(255) NOT NULL,
+                tenant_id NVARCHAR(255) NOT NULL,
+                client_id NVARCHAR(255) NOT NULL,
+                client_secret NVARCHAR(255) NOT NULL,
+                account_name NVARCHAR(255),
+                stored_at DATETIME DEFAULT GETDATE()
+            )
+        """)
+
         # Hash any plain text passwords
         cursor.execute("SELECT email, password_hash FROM users WHERE password_hash NOT LIKE '$2b$%'")
         users = cursor.fetchall()
@@ -196,7 +210,16 @@ def get_user_credentials(email):
 
 def add_auth_endpoints(app):
 
-    init_db()
+    _db_initialized = [False]
+
+    def ensure_db():
+        if not _db_initialized[0]:
+            init_db()
+            _db_initialized[0] = True
+
+    @app.before_request
+    def lazy_init():
+        ensure_db()
 
     @app.route("/api/auth/login", methods=["POST", "OPTIONS"])
     def login():

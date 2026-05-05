@@ -2129,6 +2129,16 @@ const SetupGuidePage = ({ onContinue, onBack, isNewUser }) => {
         }
     };
 
+    // Download CloudFormation template from public folder
+    const downloadCloudFormation = () => {
+        const link = document.createElement("a");
+        link.href = "/cloudops-discovery.json";
+        link.download = "cloudops-discovery.json";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const steps = [
         {
             number: "1",
@@ -2161,6 +2171,20 @@ const SetupGuidePage = ({ onContinue, onBack, isNewUser }) => {
             ],
             showPolicy: true,
         },
+        {
+            number: "4",
+            title: "Auto-attach All Discovery Policies (Recommended)",
+            desc: "Use our CloudFormation template to automatically create and attach all 13 discovery policies to your IAM user in one click — no manual steps needed.",
+            details: [
+                "Download the CloudFormation template using the button below",
+                "Go to AWS Console → CloudFormation → Create Stack → With new resources",
+                "Choose existing template → Upload a template file → select the downloaded file → Next",
+                "Enter your IAM username exactly as it appears in AWS Console → Next → Next",
+                "Check the IAM capabilities checkbox → Create stack",
+                "Wait 2–3 minutes until status shows CREATE_COMPLETE → Done ✅",
+            ],
+            showDownload: true,
+        },
     ];
 
     return (
@@ -2181,18 +2205,28 @@ const SetupGuidePage = ({ onContinue, onBack, isNewUser }) => {
                 {steps.map((step, i) => (
                     <div key={i} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, padding: 24, marginBottom: 16 }}>
                         <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
-                            <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--accent)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
+                            <div style={{ width: 32, height: 32, borderRadius: "50%", background: step.number === "4" ? "var(--green)" : "var(--accent)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
                                 {step.number}
                             </div>
                             <div style={{ flex: 1 }}>
-                                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{step.title}</div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                                    <div style={{ fontWeight: 700, fontSize: 15 }}>{step.title}</div>
+                                    {step.number === "4" && (
+                                        <span style={{ background: "var(--green-bg)", color: "var(--green)", border: "1px solid var(--green)", borderRadius: 20, fontSize: 10, fontWeight: 700, padding: "2px 8px", letterSpacing: "0.04em" }}>
+                                            RECOMMENDED
+                                        </span>
+                                    )}
+                                </div>
                                 <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 12 }}>{step.desc}</div>
+
                                 {step.details.map((d, j) => (
                                     <div key={j} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
-                                        <span style={{ color: "var(--accent)", fontWeight: 700, fontSize: 13, marginTop: 1 }}>→</span>
+                                        <span style={{ color: step.number === "4" ? "var(--green)" : "var(--accent)", fontWeight: 700, fontSize: 13, marginTop: 1 }}>→</span>
                                         <span style={{ fontSize: 13, color: "var(--text2)" }}>{d}</span>
                                     </div>
                                 ))}
+
+                                {/* Cost Explorer inline policy */}
                                 {step.showPolicy && (
                                     <div style={{ marginTop: 12, position: "relative" }}>
                                         <pre style={{ background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 10, padding: 14, fontSize: 11, color: "var(--text)", overflowX: "auto", margin: 0, lineHeight: 1.6 }}>
@@ -2204,6 +2238,45 @@ const SetupGuidePage = ({ onContinue, onBack, isNewUser }) => {
                                         >
                                             {copied ? "✓ Copied!" : "Copy"}
                                         </button>
+                                    </div>
+                                )}
+
+                                {/* CloudFormation download */}
+                                {step.showDownload && (
+                                    <div style={{ marginTop: 16 }}>
+                                        {/* Info box */}
+                                        <div style={{ background: "var(--green-bg)", border: "1px solid var(--green)", borderRadius: 10, padding: "12px 16px", marginBottom: 14, fontSize: 12, color: "var(--green)" }}>
+                                            <div style={{ fontWeight: 700, marginBottom: 4 }}>What this template does:</div>
+                                            <div style={{ color: "var(--text2)", lineHeight: 1.6 }}>
+                                                Creates <strong>13 managed policies</strong> covering 200+ AWS services, groups them into a <strong>CloudOps-Discovery-Group</strong>, and automatically adds your IAM user to that group — all in one stack.
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            onClick={downloadCloudFormation}
+                                            style={{
+                                                display: "flex", alignItems: "center", gap: 10,
+                                                background: "var(--green)", color: "white",
+                                                border: "none", borderRadius: 10,
+                                                padding: "12px 24px", fontSize: 14,
+                                                fontWeight: 600, cursor: "pointer",
+                                                width: "100%", justifyContent: "center",
+                                            }}
+                                            onMouseEnter={e => e.currentTarget.style.opacity = "0.9"}
+                                            onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+                                        >
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                                <polyline points="7 10 12 15 17 10"/>
+                                                <line x1="12" y1="15" x2="12" y2="3"/>
+                                            </svg>
+                                            Download CloudFormation Template
+                                        </button>
+
+                                        {/* Warning note */}
+                                        <div style={{ marginTop: 10, fontSize: 11, color: "var(--text3)", textAlign: "center" }}>
+                                            ⚠ During stack creation, check <strong>"I acknowledge that AWS CloudFormation might create IAM resources"</strong>
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -2518,7 +2591,496 @@ const CloudFrontSection = ({ awsData }) => {
 };
 
 // ── Regional Services Section ──────────────────────────────────────────────────
-const RegionalSection = ({ awsData }) => {
+// ─────────────────────────────────────────────────────────────────────────────
+// REPLACE your existing RegionalSection with this entire block.
+// Also paste the SERVICE_CATEGORIES constant ABOVE the RegionalSection.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SERVICE_CATEGORIES = {
+    Compute: {
+        color: "#3B82F6", bg: "#EFF6FF", border: "#BFDBFE",
+        icon: "⚙️",
+        services: [
+            { key: "ec2",              label: "EC2 Instances" },
+            { key: "lambda_fn",        label: "Lambda Functions" },
+            { key: "ecs_clusters",     label: "ECS Clusters" },
+            { key: "ecs_services",     label: "ECS Services" },
+            { key: "eks_clusters",     label: "EKS Clusters" },
+            { key: "lightsail",        label: "Lightsail" },
+            { key: "batch",            label: "Batch Environments" },
+            { key: "apprunner",        label: "App Runner" },
+            { key: "elastic_beanstalk",label: "Elastic Beanstalk" },
+            { key: "autoscaling",      label: "Auto Scaling Groups" },
+            { key: "launch_templates", label: "Launch Templates" },
+            { key: "ec2_spot",         label: "Spot Fleets" },
+        ],
+    },
+    Storage: {
+        color: "#8B5CF6", bg: "#F5F3FF", border: "#DDD6FE",
+        icon: "🗄️",
+        services: [
+            { key: "efs",              label: "EFS File Systems" },
+            { key: "fsx",              label: "FSx File Systems" },
+            { key: "glacier",          label: "Glacier Vaults" },
+            { key: "backup",           label: "Backup Vaults" },
+            { key: "ebs_volumes",      label: "EBS Volumes" },
+            { key: "ebs_snapshots",    label: "EBS Snapshots" },
+            { key: "storage_gateway",  label: "Storage Gateway" },
+        ],
+    },
+    Databases: {
+        color: "#10B981", bg: "#ECFDF5", border: "#A7F3D0",
+        icon: "🛢️",
+        services: [
+            { key: "rds",              label: "RDS Instances" },
+            { key: "rds_clusters",     label: "RDS Clusters" },
+            { key: "dynamodb",         label: "DynamoDB Tables" },
+            { key: "elasticache",      label: "ElastiCache Clusters" },
+            { key: "redshift",         label: "Redshift Clusters" },
+            { key: "documentdb",       label: "DocumentDB Clusters" },
+            { key: "neptune",          label: "Neptune Clusters" },
+            { key: "keyspaces",        label: "Keyspaces Tables" },
+            { key: "timestream",       label: "Timestream DBs" },
+            { key: "qldb",             label: "QLDB Ledgers" },
+            { key: "memorydb",         label: "MemoryDB Clusters" },
+            { key: "rds_proxies",      label: "RDS Proxies" },
+        ],
+    },
+    Networking: {
+        color: "#F59E0B", bg: "#FFFBEB", border: "#FDE68A",
+        icon: "🌐",
+        services: [
+            { key: "vpc",              label: "VPCs" },
+            { key: "subnets",          label: "Subnets" },
+            { key: "security_groups",  label: "Security Groups" },
+            { key: "elb",              label: "Classic ELBs" },
+            { key: "alb",              label: "App Load Balancers" },
+            { key: "nlb",              label: "Network Load Balancers" },
+            { key: "transit_gateway",  label: "Transit Gateways" },
+            { key: "direct_connect",   label: "Direct Connect" },
+            { key: "vpn_gateways",     label: "VPN Gateways" },
+            { key: "nat_gateways",     label: "NAT Gateways" },
+            { key: "internet_gateways",label: "Internet Gateways" },
+            { key: "network_acls",     label: "Network ACLs" },
+            { key: "route_tables",     label: "Route Tables" },
+            { key: "elastic_ips",      label: "Elastic IPs" },
+            { key: "vpc_endpoints",    label: "VPC Endpoints" },
+            { key: "waf",              label: "WAF Web ACLs" },
+            { key: "shield",           label: "Shield Resources" },
+        ],
+    },
+    Security: {
+        color: "#EF4444", bg: "#FEF2F2", border: "#FECACA",
+        icon: "🔒",
+        services: [
+            { key: "guardduty",        label: "GuardDuty Findings" },
+            { key: "securityhub",      label: "Security Hub Findings" },
+            { key: "cloudtrail",       label: "CloudTrail Trails" },
+            { key: "config",           label: "Config Rules" },
+            { key: "macie",            label: "Macie Jobs" },
+            { key: "inspector",        label: "Inspector Findings" },
+            { key: "detective",        label: "Detective Graphs" },
+            { key: "acm",              label: "ACM Certificates" },
+            { key: "kms",              label: "KMS Keys" },
+            { key: "secrets_manager",  label: "Secrets Manager" },
+            { key: "ssm_parameters",   label: "SSM Parameters" },
+        ],
+    },
+    Messaging: {
+        color: "#06B6D4", bg: "#ECFEFF", border: "#A5F3FC",
+        icon: "📨",
+        services: [
+            { key: "sns",              label: "SNS Topics" },
+            { key: "sqs",              label: "SQS Queues" },
+            { key: "eventbridge",      label: "EventBridge Rules" },
+            { key: "kinesis",          label: "Kinesis Streams" },
+            { key: "kinesis_firehose", label: "Kinesis Firehose" },
+            { key: "mq",               label: "MQ Brokers" },
+            { key: "kafka",            label: "MSK Clusters" },
+            { key: "iot",              label: "IoT Things" },
+        ],
+    },
+    Serverless: {
+        color: "#F97316", bg: "#FFF7ED", border: "#FED7AA",
+        icon: "⚡",
+        services: [
+            { key: "api_gateway",      label: "API Gateway REST" },
+            { key: "api_gateway_v2",   label: "API Gateway HTTP" },
+            { key: "step_functions",   label: "Step Functions" },
+            { key: "appsync",          label: "AppSync APIs" },
+            { key: "amplify",          label: "Amplify Apps" },
+        ],
+    },
+    Analytics: {
+        color: "#6366F1", bg: "#EEF2FF", border: "#C7D2FE",
+        icon: "📊",
+        services: [
+            { key: "glue",             label: "Glue Jobs" },
+            { key: "athena",           label: "Athena Workgroups" },
+            { key: "emr",              label: "EMR Clusters" },
+            { key: "opensearch",       label: "OpenSearch Domains" },
+            { key: "redshift_serverless", label: "Redshift Serverless" },
+            { key: "quicksight",       label: "QuickSight Datasets" },
+            { key: "lakeformation",    label: "Lake Formation" },
+            { key: "databrew",         label: "DataBrew Projects" },
+        ],
+    },
+    "AI/ML": {
+        color: "#EC4899", bg: "#FDF2F8", border: "#FBCFE8",
+        icon: "🤖",
+        services: [
+            { key: "sagemaker",        label: "SageMaker Endpoints" },
+            { key: "bedrock",          label: "Bedrock Models" },
+            { key: "rekognition",      label: "Rekognition Collections" },
+            { key: "comprehend",       label: "Comprehend Jobs" },
+            { key: "textract",         label: "Textract Jobs" },
+            { key: "polly",            label: "Polly Lexicons" },
+            { key: "translate",        label: "Translate Jobs" },
+            { key: "lex",              label: "Lex Bots" },
+            { key: "kendra",           label: "Kendra Indexes" },
+        ],
+    },
+    DevOps: {
+        color: "#14B8A6", bg: "#F0FDFA", border: "#99F6E4",
+        icon: "🛠️",
+        services: [
+            { key: "codepipeline",     label: "CodePipeline" },
+            { key: "codebuild",        label: "CodeBuild Projects" },
+            { key: "codedeploy",       label: "CodeDeploy Apps" },
+            { key: "codecommit",       label: "CodeCommit Repos" },
+            { key: "ecr",              label: "ECR Repositories" },
+            { key: "cloudformation",   label: "CloudFormation Stacks" },
+            { key: "cdk_assets",       label: "CDK Assets" },
+        ],
+    },
+    Monitoring: {
+        color: "#84CC16", bg: "#F7FEE7", border: "#D9F99D",
+        icon: "📈",
+        services: [
+            { key: "cloudwatch",       label: "CloudWatch Alarms" },
+            { key: "cloudwatch_dashboards", label: "CW Dashboards" },
+            { key: "cloudwatch_logs",  label: "CW Log Groups" },
+            { key: "xray",             label: "X-Ray Groups" },
+            { key: "health",           label: "Health Events" },
+            { key: "synthetics",       label: "CloudWatch Synthetics" },
+        ],
+    },
+    "Migration & Transfer": {
+        color: "#64748B", bg: "#F8FAFC", border: "#CBD5E1",
+        icon: "🔄",
+        services: [
+            { key: "dms",              label: "DMS Tasks" },
+            { key: "datasync",         label: "DataSync Tasks" },
+            { key: "snowball",         label: "Snowball Jobs" },
+            { key: "transfer",         label: "Transfer Family" },
+            { key: "migration_hub",    label: "Migration Hub" },
+        ],
+    },
+};
+
+// ── helper: count items in a region data field ────────────────────────────────
+const countField = (val) => {
+    if (!val) return 0;
+    if (Array.isArray(val)) return val.length;
+    if (typeof val === "object") {
+        // VPC-style nested object
+        if (val.vpcs) return val.vpcs.length;
+        return Object.values(val).reduce((s, v) => s + (Array.isArray(v) ? v.length : 0), 0);
+    }
+    return 0;
+};
+
+// ── Single-Region detailed view ───────────────────────────────────────────────
+const SingleRegionView = ({ region, regionData, awsData }) => {
+    const [openCategory, setOpenCategory] = useState(null);
+
+    // Total resource count across all category services
+    const totalResources = Object.values(SERVICE_CATEGORIES).reduce((sum, cat) => {
+        return sum + cat.services.reduce((s, svc) => {
+            const val = regionData[svc.key] ?? regionData[svc.key.replace(/_/g, "")] ?? null;
+            return s + countField(val);
+        }, 0);
+    }, 0);
+
+    const categorySummary = Object.entries(SERVICE_CATEGORIES).map(([catName, cat]) => {
+        const items = cat.services.map(svc => {
+            const val = regionData[svc.key] ?? null;
+            const count = countField(val);
+            return { ...svc, count, raw: val };
+        }).filter(s => s.count > 0);
+        return { catName, cat, items, total: items.reduce((s, i) => s + i.count, 0) };
+    }).filter(c => c.total > 0);
+
+    return (
+        <div>
+            {/* Header */}
+            <div style={{ marginBottom: 24 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
+                    <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.03em" }}>
+                        {region}
+                    </div>
+                    <Badge text="Single Region Scan" variant="blue" />
+                </div>
+                <div style={{ fontSize: 13, color: "var(--text2)" }}>
+                    {totalResources} resources across {categorySummary.length} service categories
+                </div>
+            </div>
+
+            {/* Summary grid — category cards */}
+            <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+                gap: 12,
+                marginBottom: 32,
+            }}>
+                {categorySummary.map(({ catName, cat, total }) => (
+                    <div
+                        key={catName}
+                        onClick={() => setOpenCategory(openCategory === catName ? null : catName)}
+                        style={{
+                            background: cat.bg,
+                            border: `1.5px solid ${openCategory === catName ? cat.color : cat.border}`,
+                            borderRadius: 12,
+                            padding: "16px 18px",
+                            cursor: "pointer",
+                            transition: "all 0.15s",
+                            boxShadow: openCategory === catName ? `0 0 0 3px ${cat.color}22` : "none",
+                        }}
+                    >
+                        <div style={{ fontSize: 20, marginBottom: 8 }}>{cat.icon}</div>
+                        <div style={{ fontSize: 22, fontWeight: 700, color: cat.color, letterSpacing: "-0.03em", marginBottom: 2 }}>
+                            {total}
+                        </div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: cat.color, opacity: 0.85 }}>{catName}</div>
+                        <div style={{ fontSize: 10, color: cat.color, opacity: 0.65, marginTop: 2 }}>
+                            {cat.services.filter(s => countField(regionData[s.key]) > 0).length} of {cat.services.length} services
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Expanded category detail */}
+            {openCategory && (() => {
+                const { cat, items } = categorySummary.find(c => c.catName === openCategory);
+                return (
+                    <div style={{
+                        background: "var(--surface)",
+                        border: `1.5px solid ${cat.color}`,
+                        borderRadius: 16,
+                        marginBottom: 24,
+                        overflow: "hidden",
+                        boxShadow: `0 4px 24px ${cat.color}18`,
+                    }}>
+                        <div style={{
+                            padding: "16px 20px",
+                            borderBottom: "1px solid var(--border)",
+                            background: cat.bg,
+                            display: "flex", alignItems: "center", gap: 10,
+                        }}>
+                            <span style={{ fontSize: 20 }}>{cat.icon}</span>
+                            <span style={{ fontSize: 15, fontWeight: 700, color: cat.color }}>{openCategory}</span>
+                            <Badge text={`${items.reduce((s,i)=>s+i.count,0)} resources`} variant="blue" />
+                            <button
+                                onClick={() => setOpenCategory(null)}
+                                style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: cat.color, fontSize: 18, lineHeight: 1 }}
+                            >×</button>
+                        </div>
+
+                        {/* Service breakdown */}
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 0 }}>
+                            {items.map(svc => (
+                                <ServiceDetail key={svc.key} svc={svc} color={cat.color} bg={cat.bg} />
+                            ))}
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* Full services list — all categories expanded */}
+            {categorySummary.map(({ catName, cat, items, total }) => (
+                <div key={catName} style={{ marginBottom: 20 }}>
+                    <Card
+                        title={`${cat.icon} ${catName}`}
+                        badge={<Badge text={`${total} resources`} variant="blue" />}
+                    >
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 0 }}>
+                            {items.map(svc => (
+                                <ServiceDetail key={svc.key} svc={svc} color={cat.color} bg={cat.bg} />
+                            ))}
+                        </div>
+                    </Card>
+                </div>
+            ))}
+
+            {/* VPC deep-dive if available */}
+            {regionData.vpc?.vpcs?.length > 0 && (
+                <Card title="VPC Details" badge={<Badge text={`${regionData.vpc.vpcs.length} VPCs`} variant="blue" />}>
+                    <DataTable
+                        columns={["VPC ID", "CIDR", "Name", "State", "Default"]}
+                        rows={regionData.vpc.vpcs.map(v => [
+                            <Mono>{v.VpcId || v.id}</Mono>,
+                            <Mono>{v.CidrBlock || v.cidr}</Mono>,
+                            v.name || (v.Tags?.find(t=>t.Key==="Name")?.Value) || "—",
+                            stateBadge(v.State || v.state),
+                            (v.IsDefault || v.default) ? "Yes" : "No",
+                        ])}
+                    />
+                </Card>
+            )}
+
+            {/* EC2 deep-dive */}
+            {Array.isArray(regionData.ec2) && regionData.ec2.length > 0 && (
+                <Card title="EC2 Instances" badge={<Badge text={`${regionData.ec2.length}`} variant="blue" />}>
+                    <DataTable
+                        columns={["Instance ID","Name","Type","State","AZ","Private IP","Public IP"]}
+                        rows={regionData.ec2.map(i => [
+                            <Mono>{i.InstanceId || i.id}</Mono>,
+                            i.name || (i.Tags?.find(t=>t.Key==="Name")?.Value) || "—",
+                            <Mono>{i.InstanceType || i.type}</Mono>,
+                            stateBadge(i.State?.Name || i.state),
+                            i.Placement?.AvailabilityZone || i.az || "—",
+                            i.PrivateIpAddress || i.private_ip || "—",
+                            i.PublicIpAddress || i.public_ip || "—",
+                        ])}
+                    />
+                </Card>
+            )}
+
+            {/* Lambda deep-dive */}
+            {Array.isArray(regionData.lambda_fn) && regionData.lambda_fn.length > 0 && (
+                <Card title="Lambda Functions" badge={<Badge text={`${regionData.lambda_fn.length}`} variant="blue" />}>
+                    <DataTable
+                        columns={["Name","Runtime","Memory (MB)","Timeout (s)","Last Modified"]}
+                        rows={regionData.lambda_fn.map(f => [
+                            <strong style={{fontSize:12}}>{f.FunctionName || f.name}</strong>,
+                            f.Runtime || f.runtime || "—",
+                            f.MemorySize || f.memory_mb || "—",
+                            f.Timeout || f.timeout_s || "—",
+                            (f.LastModified || f.last_modified || "").toString().slice(0,19),
+                        ])}
+                    />
+                </Card>
+            )}
+
+            {/* RDS deep-dive */}
+            {Array.isArray(regionData.rds) && regionData.rds.length > 0 && (
+                <Card title="RDS Instances" badge={<Badge text={`${regionData.rds.length}`} variant="blue" />}>
+                    <DataTable
+                        columns={["ID","Engine","Version","Class","State","Multi-AZ"]}
+                        rows={regionData.rds.map(i => [
+                            <Mono>{i.DBInstanceIdentifier || i.id}</Mono>,
+                            i.Engine || i.engine || "—",
+                            i.EngineVersion || i.engine_version || "—",
+                            i.DBInstanceClass || i.instance_class || "—",
+                            stateBadge(i.DBInstanceStatus || i.status || i.state),
+                            (i.MultiAZ || i.multi_az) ? "Yes" : "No",
+                        ])}
+                    />
+                </Card>
+            )}
+
+            {/* DynamoDB deep-dive */}
+            {Array.isArray(regionData.dynamodb) && regionData.dynamodb.length > 0 && (
+                <Card title="DynamoDB Tables" badge={<Badge text={`${regionData.dynamodb.length}`} variant="blue" />}>
+                    <DataTable
+                        columns={["Table Name"]}
+                        rows={regionData.dynamodb.map(t => [
+                            <strong style={{fontSize:12}}>{t.name || t || "—"}</strong>,
+                        ])}
+                    />
+                </Card>
+            )}
+
+            {/* CloudWatch Alarms deep-dive */}
+            {Array.isArray(regionData.cloudwatch) && regionData.cloudwatch.length > 0 && (
+                <Card title="CloudWatch Alarms" badge={<Badge text={`${regionData.cloudwatch.length}`} variant="blue" />}>
+                    <DataTable
+                        columns={["Name","State","Metric","Namespace","Threshold"]}
+                        rows={regionData.cloudwatch.map(a => [
+                            <strong style={{fontSize:12}}>{a.AlarmName || a.name || "—"}</strong>,
+                            stateBadge(a.StateValue || a.state),
+                            a.MetricName || a.metric || "—",
+                            a.Namespace || a.namespace || "—",
+                            a.Threshold ?? a.threshold ?? "—",
+                        ])}
+                    />
+                </Card>
+            )}
+
+            {/* SNS deep-dive */}
+            {Array.isArray(regionData.sns) && regionData.sns.length > 0 && (
+                <Card title="SNS Topics" badge={<Badge text={`${regionData.sns.length}`} variant="blue" />}>
+                    <DataTable
+                        columns={["Topic ARN"]}
+                        rows={regionData.sns.map(t => [<Mono>{t.TopicArn || t.arn || t}</Mono>])}
+                    />
+                </Card>
+            )}
+
+            {/* SQS deep-dive */}
+            {Array.isArray(regionData.sqs) && regionData.sqs.length > 0 && (
+                <Card title="SQS Queues" badge={<Badge text={`${regionData.sqs.length}`} variant="blue" />}>
+                    <DataTable
+                        columns={["Queue URL"]}
+                        rows={regionData.sqs.map(q => [<Mono>{q.url || q}</Mono>])}
+                    />
+                </Card>
+            )}
+
+            {/* Security Groups deep-dive */}
+            {regionData.vpc?.security_groups?.length > 0 && (
+                <Card title="Security Groups" badge={<Badge text={`${regionData.vpc.security_groups.length}`} variant="blue" />}>
+                    <DataTable
+                        columns={["Group ID","Name","VPC","Inbound Rules","Outbound Rules"]}
+                        rows={regionData.vpc.security_groups.map(sg => [
+                            <Mono>{sg.GroupId || sg.id}</Mono>,
+                            sg.GroupName || sg.name || "—",
+                            <Mono>{sg.VpcId || sg.vpc}</Mono>,
+                            sg.IpPermissions?.length ?? sg.inbound ?? "—",
+                            sg.IpPermissionsEgress?.length ?? sg.outbound ?? "—",
+                        ])}
+                    />
+                </Card>
+            )}
+        </div>
+    );
+};
+
+// ── Service item within a category ───────────────────────────────────────────
+const ServiceDetail = ({ svc, color, bg }) => (
+    <div style={{
+        padding: "14px 18px",
+        borderBottom: "1px solid var(--border)",
+        borderRight: "1px solid var(--border)",
+        display: "flex", alignItems: "center", gap: 12,
+    }}>
+        <div style={{
+            width: 36, height: 36, borderRadius: 8,
+            background: bg,
+            border: `1px solid ${color}30`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 18, flexShrink: 0,
+        }}>
+            {svc.count > 0 ? "✅" : "○"}
+        </div>
+        <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", marginBottom: 2 }}>{svc.label}</div>
+            <div style={{ fontSize: 11, color: "var(--text3)" }}>
+                {svc.key}
+            </div>
+        </div>
+        <div style={{
+            fontSize: 20, fontWeight: 700,
+            color: svc.count > 0 ? color : "var(--text3)",
+            minWidth: 28, textAlign: "right",
+        }}>
+            {svc.count}
+        </div>
+    </div>
+);
+
+// ── Multi-Region view (your existing RegionalSection content) ─────────────────
+const MultiRegionView = ({ awsData }) => {
     const services = ["ec2", "lambda_fn", "rds", "cloudwatch", "sns", "sqs", "dynamodb", "vpc"];
 
     const allRegions = new Set(Object.keys(awsData.services || {}));
@@ -2552,9 +3114,7 @@ const RegionalSection = ({ awsData }) => {
     const maxCount = Math.max(...counts.map((r) => r.total), 1);
 
     return (
-        <div>
-            <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.03em", marginBottom: 20 }}>Regional Services</div>
-
+        <>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 12, marginBottom: 24 }}>
                 <StatCard label="Regions" value={allRegions.size} />
                 <StatCard label="Total Resources" value={totals.total || 0} />
@@ -2606,42 +3166,15 @@ const RegionalSection = ({ awsData }) => {
                 />
             </Card>
 
+            {/* Per-region detail tables */}
             {[
-                {
-                    key: "ec2", label: "EC2",
-                    cols: ["ID","Name","Type","State","AZ","Private IP","Public IP"],
-                    row: (i) => [<Mono>{i.InstanceId||i.id}</Mono>, i.name||"—", <Mono>{i.InstanceType||i.type}</Mono>, stateBadge(i.State?.Name||i.state), i.Placement?.AvailabilityZone||i.az, i.PrivateIpAddress||i.private_ip, i.PublicIpAddress||i.public_ip||"—"],
-                },
-                {
-                    key: "cloudwatch", label: "CloudWatch Alarms",
-                    cols: ["Name","State","Metric","Namespace","Threshold"],
-                    row: (a) => [<strong style={{fontSize:12}}>{a.AlarmName||a.name||"—"}</strong>, stateBadge(a.StateValue||a.state), a.MetricName||a.metric, a.Namespace||a.namespace, a.Threshold||a.threshold],
-                },
-                {
-                    key: "lambda_fn", label: "Lambda Functions",
-                    cols: ["Name","Runtime","Memory","Timeout","Last Modified"],
-                    row: (f) => [<strong style={{fontSize:12}}>{f.FunctionName||f.name||"—"}</strong>, f.Runtime||f.runtime||"—", f.MemorySize||f.memory_mb||"—", f.Timeout||f.timeout_s||"—", (f.LastModified||f.last_modified||"").toString().slice(0,19)],
-                },
-                {
-                    key: "rds", label: "RDS Instances",
-                    cols: ["ID","Engine","Version","Class","State","Multi-AZ"],
-                    row: (i) => [<Mono>{i.DBInstanceIdentifier||i.id}</Mono>, i.Engine||i.engine||"—", i.EngineVersion||i.engine_version||"—", i.DBInstanceClass||i.instance_class||"—", stateBadge(i.DBInstanceStatus||i.status||i.state), (i.MultiAZ||i.multi_az)?"Yes":"No"],
-                },
-                {
-                    key: "sns", label: "SNS Topics",
-                    cols: ["ARN"],
-                    row: (t) => [<Mono>{t.TopicArn||t.arn||t}</Mono>],
-                },
-                {
-                    key: "sqs", label: "SQS Queues",
-                    cols: ["Queue URL"],
-                    row: (q) => [<Mono>{q.url||q}</Mono>],
-                },
-                {
-                    key: "dynamodb", label: "DynamoDB Tables",
-                    cols: ["Table Name"],
-                    row: (t) => [<strong style={{fontSize:12}}>{t.name||t||"—"}</strong>],
-                },
+                { key:"ec2", label:"EC2", cols:["ID","Name","Type","State","AZ","Private IP","Public IP"], row:(i)=>[<Mono>{i.InstanceId||i.id}</Mono>, i.name||"—", <Mono>{i.InstanceType||i.type}</Mono>, stateBadge(i.State?.Name||i.state), i.Placement?.AvailabilityZone||i.az, i.PrivateIpAddress||i.private_ip, i.PublicIpAddress||i.public_ip||"—"] },
+                { key:"cloudwatch", label:"CloudWatch Alarms", cols:["Name","State","Metric","Namespace","Threshold"], row:(a)=>[<strong style={{fontSize:12}}>{a.AlarmName||a.name||"—"}</strong>, stateBadge(a.StateValue||a.state), a.MetricName||a.metric, a.Namespace||a.namespace, a.Threshold||a.threshold] },
+                { key:"lambda_fn", label:"Lambda Functions", cols:["Name","Runtime","Memory","Timeout","Last Modified"], row:(f)=>[<strong style={{fontSize:12}}>{f.FunctionName||f.name||"—"}</strong>, f.Runtime||f.runtime||"—", f.MemorySize||f.memory_mb||"—", f.Timeout||f.timeout_s||"—", (f.LastModified||f.last_modified||"").toString().slice(0,19)] },
+                { key:"rds", label:"RDS Instances", cols:["ID","Engine","Version","Class","State","Multi-AZ"], row:(i)=>[<Mono>{i.DBInstanceIdentifier||i.id}</Mono>, i.Engine||i.engine||"—", i.EngineVersion||i.engine_version||"—", i.DBInstanceClass||i.instance_class||"—", stateBadge(i.DBInstanceStatus||i.status||i.state), (i.MultiAZ||i.multi_az)?"Yes":"No"] },
+                { key:"sns", label:"SNS Topics", cols:["ARN"], row:(t)=>[<Mono>{t.TopicArn||t.arn||t}</Mono>] },
+                { key:"sqs", label:"SQS Queues", cols:["Queue URL"], row:(q)=>[<Mono>{q.url||q}</Mono>] },
+                { key:"dynamodb", label:"DynamoDB Tables", cols:["Table Name"], row:(t)=>[<strong style={{fontSize:12}}>{t.name||t||"—"}</strong>] },
             ].map(({ key, label, cols, row }) =>
                 Object.entries(awsData.services || {})
                     .filter(([, regionData]) => Array.isArray(regionData?.[key]) && regionData[key].length > 0)
@@ -2694,6 +3227,35 @@ const RegionalSection = ({ awsData }) => {
                         </Card>
                     );
                 })}
+        </>
+    );
+};
+
+// ── RegionalSection — decides which view to render ────────────────────────────
+const RegionalSection = ({ awsData }) => {
+    const regionKeys = Object.keys(awsData.services || {});
+    const isSingleRegion = regionKeys.length === 1;
+
+    return (
+        <div>
+            <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.03em", marginBottom: 4 }}>
+                {isSingleRegion ? `Regional Services — ${regionKeys[0]}` : "Regional Services"}
+            </div>
+            <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 20 }}>
+                {isSingleRegion
+                    ? "Detailed breakdown of all scanned services in this region"
+                    : `Summary across ${regionKeys.length} scanned regions`}
+            </div>
+
+            {isSingleRegion ? (
+                <SingleRegionView
+                    region={regionKeys[0]}
+                    regionData={awsData.services[regionKeys[0]] || {}}
+                    awsData={awsData}
+                />
+            ) : (
+                <MultiRegionView awsData={awsData} />
+            )}
         </div>
     );
 };
@@ -4270,7 +4832,14 @@ export default function App() {
                 await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
 
                 const pollRes = await fetch(`${BACKEND}/api/scan/status/${jobId}`);
-                const pollJson = await pollRes.json();
+                const text = await pollRes.text();
+                if (!text) continue;
+                let pollJson;
+                try {
+                    pollJson = JSON.parse(text);
+                } catch (e) {
+                    continue;
+                }
 
                 if (pollJson.status === "running") {
                     continue; // still working, keep polling

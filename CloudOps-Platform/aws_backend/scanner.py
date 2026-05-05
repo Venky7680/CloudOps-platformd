@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 AWS Discovery — Full Multi-Region Scanner (Azure Ready)
+Extended to ~100 services with file-based persistence support
 """
 
 import json
@@ -13,10 +14,8 @@ from botocore.exceptions import ClientError
 
 
 # ── CONFIG ─────────────────────────────────────────────────────────────────────
-# Reduced from 6x5=30 threads to 3x3=9 threads to prevent Azure 502 on full scan
 REGION_WORKERS  = 3
-SERVICE_WORKERS = 3
-
+SERVICE_WORKERS = 5
 # ──────────────────────────────────────────────────────────────────────────────
 
 
@@ -71,7 +70,9 @@ def get_regions(session, selected):
         ]
 
 
-# ── PER-REGION SERVICES ────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# ORIGINAL SERVICES (17 per-region)
+# ══════════════════════════════════════════════════════════════════════════════
 
 def scan_ec2(session, region):
     ec2 = session.client("ec2", region_name=region)
@@ -198,11 +199,603 @@ def scan_ssm(session, region):
     return paginate(ssm, "describe_parameters", "Parameters")
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW: DATABASES
+# ══════════════════════════════════════════════════════════════════════════════
+
+def scan_elasticache(session, region):
+    try:
+        ec = session.client("elasticache", region_name=region)
+        return paginate(ec, "describe_cache_clusters", "CacheClusters")
+    except Exception:
+        return []
+
+
+def scan_redshift(session, region):
+    try:
+        rs = session.client("redshift", region_name=region)
+        return paginate(rs, "describe_clusters", "Clusters")
+    except Exception:
+        return []
+
+
+def scan_neptune(session, region):
+    try:
+        np = session.client("neptune", region_name=region)
+        return paginate(np, "describe_db_clusters", "DBClusters",
+                        Filters=[{"Name": "engine", "Values": ["neptune"]}])
+    except Exception:
+        return []
+
+
+def scan_documentdb(session, region):
+    try:
+        ddb = session.client("docdb", region_name=region)
+        return paginate(ddb, "describe_db_clusters", "DBClusters")
+    except Exception:
+        return []
+
+
+def scan_timestream(session, region):
+    try:
+        ts = session.client("timestream-write", region_name=region)
+        return paginate(ts, "list_databases", "Databases")
+    except Exception:
+        return []
+
+
+def scan_keyspaces(session, region):
+    try:
+        ks = session.client("keyspaces", region_name=region)
+        return paginate(ks, "list_keyspaces", "keyspaces")
+    except Exception:
+        return []
+
+
+def scan_aurora(session, region):
+    try:
+        rds = session.client("rds", region_name=region)
+        return paginate(rds, "describe_db_clusters", "DBClusters")
+    except Exception:
+        return []
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW: NETWORKING
+# ══════════════════════════════════════════════════════════════════════════════
+
+def scan_transit_gateway(session, region):
+    try:
+        ec2 = session.client("ec2", region_name=region)
+        return paginate(ec2, "describe_transit_gateways", "TransitGateways")
+    except Exception:
+        return []
+
+
+def scan_vpn(session, region):
+    try:
+        ec2 = session.client("ec2", region_name=region)
+        return paginate(ec2, "describe_vpn_connections", "VpnConnections")
+    except Exception:
+        return []
+
+
+def scan_direct_connect(session, region):
+    try:
+        dx = session.client("directconnect", region_name=region)
+        return dx.describe_connections().get("connections", [])
+    except Exception:
+        return []
+
+
+def scan_waf(session, region):
+    try:
+        waf = session.client("wafv2", region_name=region)
+        return waf.list_web_acls(Scope="REGIONAL").get("WebACLs", [])
+    except Exception:
+        return []
+
+
+def scan_network_firewall(session, region):
+    try:
+        nf = session.client("network-firewall", region_name=region)
+        return paginate(nf, "list_firewalls", "Firewalls")
+    except Exception:
+        return []
+
+
+def scan_route53_resolver(session, region):
+    try:
+        r53r = session.client("route53resolver", region_name=region)
+        return paginate(r53r, "list_resolver_endpoints", "ResolverEndpoints")
+    except Exception:
+        return []
+
+
+def scan_vpc_peering(session, region):
+    try:
+        ec2 = session.client("ec2", region_name=region)
+        return paginate(ec2, "describe_vpc_peering_connections", "VpcPeeringConnections")
+    except Exception:
+        return []
+
+
+def scan_elastic_ip(session, region):
+    try:
+        ec2 = session.client("ec2", region_name=region)
+        return ec2.describe_addresses().get("Addresses", [])
+    except Exception:
+        return []
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW: ANALYTICS
+# ══════════════════════════════════════════════════════════════════════════════
+
+def scan_glue(session, region):
+    try:
+        glue = session.client("glue", region_name=region)
+        return paginate(glue, "get_databases", "DatabaseList")
+    except Exception:
+        return []
+
+
+def scan_kinesis_streams(session, region):
+    try:
+        ks = session.client("kinesis", region_name=region)
+        return paginate(ks, "list_streams", "StreamNames")
+    except Exception:
+        return []
+
+
+def scan_kinesis_firehose(session, region):
+    try:
+        kf = session.client("firehose", region_name=region)
+        return paginate(kf, "list_delivery_streams", "DeliveryStreamNames")
+    except Exception:
+        return []
+
+
+def scan_athena(session, region):
+    try:
+        ath = session.client("athena", region_name=region)
+        return paginate(ath, "list_work_groups", "WorkGroups")
+    except Exception:
+        return []
+
+
+def scan_emr(session, region):
+    try:
+        emr = session.client("emr", region_name=region)
+        return paginate(emr, "list_clusters", "Clusters")
+    except Exception:
+        return []
+
+
+def scan_msk(session, region):
+    try:
+        msk = session.client("kafka", region_name=region)
+        return paginate(msk, "list_clusters", "ClusterInfoList")
+    except Exception:
+        return []
+
+
+def scan_opensearch(session, region):
+    try:
+        os_client = session.client("opensearch", region_name=region)
+        return os_client.list_domain_names().get("DomainNames", [])
+    except Exception:
+        return []
+
+
+def scan_quicksight(session, region):
+    try:
+        qs = session.client("quicksight", region_name=region)
+        account_id = session.client("sts").get_caller_identity()["Account"]
+        return qs.list_users(AwsAccountId=account_id, Namespace="default").get("UserList", [])
+    except Exception:
+        return []
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW: SECURITY
+# ══════════════════════════════════════════════════════════════════════════════
+
+def scan_guardduty(session, region):
+    try:
+        gd = session.client("guardduty", region_name=region)
+        detectors = gd.list_detectors().get("DetectorIds", [])
+        result = []
+        for d in detectors:
+            try:
+                info = gd.get_detector(DetectorId=d)
+                result.append({"DetectorId": d, "Status": info.get("Status")})
+            except Exception:
+                pass
+        return result
+    except Exception:
+        return []
+
+
+def scan_securityhub(session, region):
+    try:
+        sh = session.client("securityhub", region_name=region)
+        hub_arn = sh.describe_hub().get("HubArn")
+        return [{"enabled": True, "HubArn": hub_arn}] if hub_arn else []
+    except Exception:
+        return []
+
+
+def scan_config(session, region):
+    try:
+        cfg = session.client("config", region_name=region)
+        return cfg.describe_configuration_recorders().get("ConfigurationRecorders", [])
+    except Exception:
+        return []
+
+
+def scan_inspector(session, region):
+    try:
+        ins = session.client("inspector2", region_name=region)
+        status = ins.batch_get_account_status(
+            accountIds=[session.client("sts").get_caller_identity()["Account"]]
+        ).get("accounts", [])
+        return status
+    except Exception:
+        return []
+
+
+def scan_macie(session, region):
+    try:
+        mac = session.client("macie2", region_name=region)
+        status = mac.get_macie_session().get("status")
+        return [{"status": status}] if status else []
+    except Exception:
+        return []
+
+
+def scan_iam_analyzer(session, region):
+    try:
+        aa = session.client("accessanalyzer", region_name=region)
+        return paginate(aa, "list_analyzers", "analyzers")
+    except Exception:
+        return []
+
+
+def scan_shield(session, region):
+    try:
+        sh = session.client("shield", region_name="us-east-1")
+        return sh.list_protections().get("Protections", [])
+    except Exception:
+        return []
+
+
+def scan_cloudtrail(session, region):
+    try:
+        ct = session.client("cloudtrail", region_name=region)
+        return ct.describe_trails().get("trailList", [])
+    except Exception:
+        return []
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW: DEVOPS / CICD
+# ══════════════════════════════════════════════════════════════════════════════
+
+def scan_codepipeline(session, region):
+    try:
+        cp = session.client("codepipeline", region_name=region)
+        return paginate(cp, "list_pipelines", "pipelines")
+    except Exception:
+        return []
+
+
+def scan_codebuild(session, region):
+    try:
+        cb = session.client("codebuild", region_name=region)
+        return paginate(cb, "list_projects", "projects")
+    except Exception:
+        return []
+
+
+def scan_codedeploy(session, region):
+    try:
+        cd = session.client("codedeploy", region_name=region)
+        return paginate(cd, "list_applications", "applications")
+    except Exception:
+        return []
+
+
+def scan_codecommit(session, region):
+    try:
+        cc = session.client("codecommit", region_name=region)
+        return paginate(cc, "list_repositories", "repositories")
+    except Exception:
+        return []
+
+
+def scan_codeartifact(session, region):
+    try:
+        ca = session.client("codeartifact", region_name=region)
+        return paginate(ca, "list_domains", "domains")
+    except Exception:
+        return []
+
+
+def scan_elasticbeanstalk(session, region):
+    try:
+        eb = session.client("elasticbeanstalk", region_name=region)
+        return paginate(eb, "describe_environments", "Environments")
+    except Exception:
+        return []
+
+
+def scan_amplify(session, region):
+    try:
+        amp = session.client("amplify", region_name=region)
+        return paginate(amp, "list_apps", "apps")
+    except Exception:
+        return []
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW: AI / ML
+# ══════════════════════════════════════════════════════════════════════════════
+
+def scan_sagemaker(session, region):
+    try:
+        sm = session.client("sagemaker", region_name=region)
+        return paginate(sm, "list_endpoints", "Endpoints")
+    except Exception:
+        return []
+
+
+def scan_bedrock(session, region):
+    try:
+        br = session.client("bedrock", region_name=region)
+        return br.list_foundation_models().get("modelSummaries", [])
+    except Exception:
+        return []
+
+
+def scan_rekognition(session, region):
+    try:
+        rk = session.client("rekognition", region_name=region)
+        return paginate(rk, "list_collections", "CollectionIds")
+    except Exception:
+        return []
+
+
+def scan_comprehend(session, region):
+    try:
+        cp = session.client("comprehend", region_name=region)
+        return paginate(cp, "list_endpoints", "Endpoints")
+    except Exception:
+        return []
+
+
+def scan_textract(session, region):
+    try:
+        tx = session.client("textract", region_name=region)
+        return paginate(tx, "list_adapter_versions", "AdapterVersions")
+    except Exception:
+        return []
+
+
+def scan_lex(session, region):
+    try:
+        lex = session.client("lex-models", region_name=region)
+        return paginate(lex, "get_bots", "bots")
+    except Exception:
+        return []
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW: MESSAGING / INTEGRATION
+# ══════════════════════════════════════════════════════════════════════════════
+
+def scan_eventbridge(session, region):
+    try:
+        eb = session.client("events", region_name=region)
+        return paginate(eb, "list_rules", "Rules")
+    except Exception:
+        return []
+
+
+def scan_stepfunctions(session, region):
+    try:
+        sf = session.client("stepfunctions", region_name=region)
+        return paginate(sf, "list_state_machines", "stateMachines")
+    except Exception:
+        return []
+
+
+def scan_appsync(session, region):
+    try:
+        aps = session.client("appsync", region_name=region)
+        return paginate(aps, "list_graphql_apis", "graphqlApis")
+    except Exception:
+        return []
+
+
+def scan_apigateway(session, region):
+    try:
+        ag = session.client("apigateway", region_name=region)
+        return paginate(ag, "get_rest_apis", "items")
+    except Exception:
+        return []
+
+
+def scan_apigatewayv2(session, region):
+    try:
+        ag2 = session.client("apigatewayv2", region_name=region)
+        return paginate(ag2, "get_apis", "Items")
+    except Exception:
+        return []
+
+
+def scan_mq(session, region):
+    try:
+        mq = session.client("mq", region_name=region)
+        return paginate(mq, "list_brokers", "BrokerSummaries")
+    except Exception:
+        return []
+
+
+def scan_iot(session, region):
+    try:
+        iot = session.client("iot", region_name=region)
+        return paginate(iot, "list_things", "things")
+    except Exception:
+        return []
+
+
+def scan_pinpoint(session, region):
+    try:
+        pp = session.client("pinpoint", region_name=region)
+        return pp.get_apps().get("ApplicationsResponse", {}).get("Item", [])
+    except Exception:
+        return []
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW: COMPUTE
+# ══════════════════════════════════════════════════════════════════════════════
+
+def scan_lightsail(session, region):
+    try:
+        ls = session.client("lightsail", region_name=region)
+        return ls.get_instances().get("instances", [])
+    except Exception:
+        return []
+
+
+def scan_batch(session, region):
+    try:
+        bt = session.client("batch", region_name=region)
+        return paginate(bt, "describe_job_queues", "jobQueues")
+    except Exception:
+        return []
+
+
+def scan_apprunner(session, region):
+    try:
+        ar = session.client("apprunner", region_name=region)
+        return paginate(ar, "list_services", "ServiceSummaryList")
+    except Exception:
+        return []
+
+
+def scan_ec2_spot(session, region):
+    try:
+        ec2 = session.client("ec2", region_name=region)
+        return paginate(ec2, "describe_spot_instance_requests", "SpotInstanceRequests")
+    except Exception:
+        return []
+
+
+def scan_ec2_reserved(session, region):
+    try:
+        ec2 = session.client("ec2", region_name=region)
+        return ec2.describe_reserved_instances().get("ReservedInstances", [])
+    except Exception:
+        return []
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW: STORAGE
+# ══════════════════════════════════════════════════════════════════════════════
+
+def scan_efs(session, region):
+    try:
+        efs = session.client("efs", region_name=region)
+        return paginate(efs, "describe_file_systems", "FileSystems")
+    except Exception:
+        return []
+
+
+def scan_fsx(session, region):
+    try:
+        fsx = session.client("fsx", region_name=region)
+        return paginate(fsx, "describe_file_systems", "FileSystems")
+    except Exception:
+        return []
+
+
+def scan_backup(session, region):
+    try:
+        bk = session.client("backup", region_name=region)
+        return paginate(bk, "list_backup_vaults", "BackupVaultList")
+    except Exception:
+        return []
+
+
+def scan_storagegateway(session, region):
+    try:
+        sg = session.client("storagegateway", region_name=region)
+        return paginate(sg, "list_gateways", "Gateways")
+    except Exception:
+        return []
+
+
+def scan_glacier(session, region):
+    try:
+        gl = session.client("glacier", region_name=region)
+        return paginate(gl, "list_vaults", "VaultList", accountId="-")
+    except Exception:
+        return []
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW: MONITORING / GOVERNANCE
+# ══════════════════════════════════════════════════════════════════════════════
+
+def scan_xray(session, region):
+    try:
+        xr = session.client("xray", region_name=region)
+        return paginate(xr, "get_groups", "Groups")
+    except Exception:
+        return []
+
+
+def scan_servicecatalog(session, region):
+    try:
+        sc = session.client("servicecatalog", region_name=region)
+        return paginate(sc, "list_portfolios", "PortfolioDetails")
+    except Exception:
+        return []
+
+
+def scan_health(session, region):
+    try:
+        health = session.client("health", region_name="us-east-1")
+        return paginate(health, "describe_events", "events",
+                        filter={"regions": [region]})
+    except Exception:
+        return []
+
+
 # ── GLOBAL SERVICES ────────────────────────────────────────────────────────────
 
 def scan_iam(session):
     iam = session.client("iam")
     return paginate(iam, "list_users", "Users")
+
+
+def scan_iam_roles(session):
+    try:
+        iam = session.client("iam")
+        return paginate(iam, "list_roles", "Roles")
+    except Exception:
+        return []
+
+
+def scan_iam_policies(session):
+    try:
+        iam = session.client("iam")
+        return paginate(iam, "list_policies", "Policies", Scope="Local")
+    except Exception:
+        return []
 
 
 def scan_s3(session):
@@ -229,16 +822,39 @@ def scan_cloudfront(session):
         return []
 
 
+def scan_organizations(session):
+    try:
+        org = session.client("organizations", region_name="us-east-1")
+        return org.describe_organization().get("Organization", {})
+    except Exception:
+        return {}
+
+
+def scan_trusted_advisor(session):
+    try:
+        ta = session.client("support", region_name="us-east-1")
+        checks = ta.describe_trusted_advisor_checks(language="en").get("checks", [])
+        return [{"id": c["id"], "name": c["name"], "category": c["category"]} for c in checks]
+    except Exception:
+        return []
+
+
+def scan_budgets(session):
+    try:
+        bud = session.client("budgets", region_name="us-east-1")
+        account_id = session.client("sts").get_caller_identity()["Account"]
+        return paginate(bud, "describe_budgets", "Budgets", AccountId=account_id)
+    except Exception:
+        return []
+
+
 def scan_costs(session):
     ce = session.client("ce", region_name="us-east-1")
     now = datetime.now(timezone.utc)
-
     start = now.replace(day=1).strftime("%Y-%m-%d")
     end   = now.strftime("%Y-%m-%d")
-
     result = {"by_service": {}, "total": 0, "forecast": None}
 
-    # ── Month-to-date cost by service ─────────────────────────────────────────
     try:
         resp = ce.get_cost_and_usage(
             TimePeriod={"Start": start, "End": end},
@@ -255,16 +871,11 @@ def scan_costs(session):
     except Exception as e:
         result["error"] = str(e)
 
-    # ── End-of-month forecast ──────────────────────────────────────────────────
-    # AWS requires at least 3 days of spend data to generate a forecast.
-    # If insufficient data, forecast stays None and frontend shows "No data yet".
     try:
         if now.month == 12:
             forecast_end = f"{now.year + 1}-01-01"
         else:
             forecast_end = now.replace(month=now.month + 1, day=1).strftime("%Y-%m-%d")
-
-        # Only fetch forecast if start != end (i.e. not the first day of month)
         if end != start:
             f_resp = ce.get_cost_forecast(
                 TimePeriod={"Start": end, "End": forecast_end},
@@ -278,7 +889,9 @@ def scan_costs(session):
     return result
 
 
-# ── MAIN ───────────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# MAIN SCAN
+# ══════════════════════════════════════════════════════════════════════════════
 
 def scan_all(access_key: str, secret_key: str, regions: List[str] = None) -> Dict[str, Any]:
     results = {}
@@ -286,52 +899,136 @@ def scan_all(access_key: str, secret_key: str, regions: List[str] = None) -> Dic
     try:
         session = build_session(access_key, secret_key)
 
-        # ── Identity (safe — missing sts permission shows warning, not crash) ──
+        # Identity
         try:
             results["identity"] = scan_identity(session)
         except Exception as e:
-            results["identity"] = {
-                "error": str(e),
-                "account_id": None,
-                "arn": None,
-                "user_id": None
-            }
+            results["identity"] = {"error": str(e), "account_id": None, "arn": None, "user_id": None}
 
         if not regions:
             regions = get_regions(session, [])
 
-        results["regions"]    = regions
-        results["costs"]      = scan_costs(session)
-        results["iam"]        = scan_iam(session)
-        results["s3"]         = scan_s3(session)
-        results["route53"]    = scan_route53(session)
-        results["cloudfront"] = scan_cloudfront(session)
+        results["regions"] = regions
 
-        # ── Per-region services ────────────────────────────────────────────────
-        PER_REGION_SERVICES = [
-            ("ec2",            scan_ec2),
-            ("lambda_fn",      scan_lambda),
-            ("rds",            scan_rds),
-            ("vpc",            scan_vpc),
-            ("cloudwatch",     scan_cloudwatch),
-            ("sns",            scan_sns),
-            ("sqs",            scan_sqs),
-            ("dynamodb",       scan_dynamodb),
-            ("cloudformation", scan_cloudformation),
-            ("eks",            scan_eks),
-            ("ecs",            scan_ecs),
-            ("elb",            scan_elb),
-            ("autoscaling",    scan_autoscaling),
-            ("secrets",        scan_secrets),
-            ("kms",            scan_kms),
-            ("ecr",            scan_ecr),
-            ("ssm",            scan_ssm),
+        # Global services
+        results["costs"]           = scan_costs(session)
+        results["iam"]             = scan_iam(session)
+        results["iam_roles"]       = scan_iam_roles(session)
+        results["iam_policies"]    = scan_iam_policies(session)
+        results["s3"]              = scan_s3(session)
+        results["route53"]         = scan_route53(session)
+        results["cloudfront"]      = scan_cloudfront(session)
+        results["organizations"]   = scan_organizations(session)
+        results["trusted_advisor"] = scan_trusted_advisor(session)
+        results["budgets"]         = scan_budgets(session)
+
+        # ── Core services — always scanned (all regions) ──────────────────────
+        CORE_SERVICES = [
+            ("ec2",               scan_ec2),
+            ("lambda_fn",         scan_lambda),
+            ("rds",               scan_rds),
+            ("vpc",               scan_vpc),
+            ("cloudwatch",        scan_cloudwatch),
+            ("sns",               scan_sns),
+            ("sqs",               scan_sqs),
+            ("dynamodb",          scan_dynamodb),
+            ("cloudformation",    scan_cloudformation),
+            ("eks",               scan_eks),
+            ("ecs",               scan_ecs),
+            ("elb",               scan_elb),
+            ("autoscaling",       scan_autoscaling),
+            ("secrets",           scan_secrets),
+            ("kms",               scan_kms),
+            ("ecr",               scan_ecr),
+            ("ssm",               scan_ssm),
         ]
+
+        # ── Extended services — only scanned for single region ────────────────
+        EXTENDED_SERVICES = [
+            # Databases
+            ("elasticache",       scan_elasticache),
+            ("redshift",          scan_redshift),
+            ("neptune",           scan_neptune),
+            ("documentdb",        scan_documentdb),
+            ("timestream",        scan_timestream),
+            ("keyspaces",         scan_keyspaces),
+            ("aurora",            scan_aurora),
+            # Networking
+            ("transit_gateway",   scan_transit_gateway),
+            ("vpn",               scan_vpn),
+            ("direct_connect",    scan_direct_connect),
+            ("waf",               scan_waf),
+            ("network_firewall",  scan_network_firewall),
+            ("route53_resolver",  scan_route53_resolver),
+            ("vpc_peering",       scan_vpc_peering),
+            ("elastic_ip",        scan_elastic_ip),
+            # Analytics
+            ("glue",              scan_glue),
+            ("kinesis_streams",   scan_kinesis_streams),
+            ("kinesis_firehose",  scan_kinesis_firehose),
+            ("athena",            scan_athena),
+            ("emr",               scan_emr),
+            ("msk",               scan_msk),
+            ("opensearch",        scan_opensearch),
+            ("quicksight",        scan_quicksight),
+            # Security
+            ("guardduty",         scan_guardduty),
+            ("securityhub",       scan_securityhub),
+            ("config",            scan_config),
+            ("inspector",         scan_inspector),
+            ("macie",             scan_macie),
+            ("iam_analyzer",      scan_iam_analyzer),
+            ("shield",            scan_shield),
+            ("cloudtrail",        scan_cloudtrail),
+            # DevOps
+            ("codepipeline",      scan_codepipeline),
+            ("codebuild",         scan_codebuild),
+            ("codedeploy",        scan_codedeploy),
+            ("codecommit",        scan_codecommit),
+            ("codeartifact",      scan_codeartifact),
+            ("elasticbeanstalk",  scan_elasticbeanstalk),
+            ("amplify",           scan_amplify),
+            # AI/ML
+            ("sagemaker",         scan_sagemaker),
+            ("bedrock",           scan_bedrock),
+            ("rekognition",       scan_rekognition),
+            ("comprehend",        scan_comprehend),
+            ("textract",          scan_textract),
+            ("lex",               scan_lex),
+            # Messaging
+            ("eventbridge",       scan_eventbridge),
+            ("stepfunctions",     scan_stepfunctions),
+            ("appsync",           scan_appsync),
+            ("apigateway",        scan_apigateway),
+            ("apigatewayv2",      scan_apigatewayv2),
+            ("mq",                scan_mq),
+            ("iot",               scan_iot),
+            ("pinpoint",          scan_pinpoint),
+            # Compute
+            ("lightsail",         scan_lightsail),
+            ("batch",             scan_batch),
+            ("apprunner",         scan_apprunner),
+            ("ec2_spot",          scan_ec2_spot),
+            ("ec2_reserved",      scan_ec2_reserved),
+            # Storage
+            ("efs",               scan_efs),
+            ("fsx",               scan_fsx),
+            ("backup",            scan_backup),
+            ("storagegateway",    scan_storagegateway),
+            ("glacier",           scan_glacier),
+            # Monitoring
+            ("xray",              scan_xray),
+            ("servicecatalog",    scan_servicecatalog),
+            ("health",            scan_health),
+        ]
+
+        # Use all services for single region, core only for multi-region
+        is_single_region = len(regions) == 1
+        PER_REGION_SERVICES = CORE_SERVICES + EXTENDED_SERVICES if is_single_region else CORE_SERVICES
 
         results["services"] = {}
 
         def scan_region(region):
-            """Scan all services for one region. Skips opt-in regions gracefully."""
             try:
                 reg_session = build_session(access_key, secret_key, region)
                 region_data = {}
