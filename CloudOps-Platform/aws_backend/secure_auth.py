@@ -83,10 +83,22 @@ def init_db():
                 tenant_id NVARCHAR(255) NOT NULL,
                 client_id NVARCHAR(255) NOT NULL,
                 client_secret NVARCHAR(255) NOT NULL,
+                subscription_id NVARCHAR(255) NOT NULL,
                 account_name NVARCHAR(255),
                 stored_at DATETIME DEFAULT GETDATE()
             )
         """)
+        # Add subscription_id column if the table already exists without it
+        try:
+            cursor.execute("""
+                IF NOT EXISTS (
+                    SELECT * FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_NAME='azure_credentials' AND COLUMN_NAME='subscription_id'
+                )
+                ALTER TABLE azure_credentials ADD subscription_id NVARCHAR(255) NOT NULL DEFAULT ''
+            """)
+        except Exception:
+            pass
 
         # Hash any plain text passwords
         cursor.execute("SELECT email, password_hash FROM users WHERE password_hash NOT LIKE '$2b$%'")

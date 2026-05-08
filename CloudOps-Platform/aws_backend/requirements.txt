@@ -6,3 +6,23 @@ gunicorn==21.2.0
 PyJWT==2.8.0
 pyodbc==5.1.0
 bcrypt
+
+# Azure SDK
+azure-identity
+azure-mgmt-resource
+azure-mgmt-subscription
+azure-mgmt-compute
+azure-mgmt-storage
+azure-mgmt-network
+azure-mgmt-sql
+azure-mgmt-web
+azure-mgmt-containerservice
+azure-mgmt-containerregistry
+azure-mgmt-keyvault
+azure-mgmt-monitor
+azure-mgmt-servicebus
+azure-mgmt-cdn
+azure-mgmt-dns
+azure-mgmt-authorization
+azure-mgmt-costmanagement
+
