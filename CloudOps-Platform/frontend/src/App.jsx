@@ -3420,271 +3420,362 @@ const RegionalSection = ({ awsData }) => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 const fmt = (v, decimals = 2) =>
-    new Intl.NumberFormat("en-US", {
-        style: "currency", currency: "USD",
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals,
-    }).format(v || 0);
+    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(v || 0);
 
 const fmtK = (v) =>
     v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : fmt(v, 2);
 
 const pct = (a, b) => (b > 0 ? ((a / b) * 100).toFixed(1) : "0.0");
 
-const FinOpsSection = ({ awsData, selectedCloud, accountId: propAccountId }) => {
-    const TABS = ["overview", "services", "trends", "anomalies", "rightsizing",
-        "allocation", "whatif", "savings", "budgets"];
+const fmtN = (v, d = 1) =>
+    new Intl.NumberFormat("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }).format(v || 0);
 
-    const [activeTab, setActiveTab] = useState(() => {
-        try { return localStorage.getItem("cloudops-finops-tab") || "overview"; } catch { return "overview"; }
-    });
-    const [showBudgetModal, setShowBudgetModal]   = useState(false);
-    const [newBudget, setNewBudget]               = useState({ name: "", amount: "", period: "Monthly", service: "All Services", alertAt: 80 });
-    const [savedBudgets, setSavedBudgets]         = useState(() => {
-        try { return JSON.parse(localStorage.getItem("cloudops-budgets") || "[]"); } catch { return []; }
-    });
-    const [dateRange, setDateRange]   = useState("30d");
-    const [sortCol, setSortCol]       = useState("cost");
-    const [sortDir, setSortDir]       = useState("desc");
+const linearRegression = arr => {
+    const n = arr.length;
+    if (n < 2) return { slope: 0, intercept: arr[0] || 0, predict: () => arr[0] || 0 };
+    const xs = arr.map((_, i) => i);
+    const meanX = xs.reduce((a, b) => a + b, 0) / n;
+    const meanY = arr.reduce((a, b) => a + b, 0) / n;
+    const slope = xs.reduce((s, x, i) => s + (x - meanX) * (arr[i] - meanY), 0) /
+        xs.reduce((s, x) => s + (x - meanX) ** 2, 0);
+    const intercept = meanY - slope * meanX;
+    return { slope, intercept, predict: i => intercept + slope * i };
+};
+
+const zScore = (value, history) => {
+    if (!history || history.length < 2) return 0;
+    const mean = history.reduce((a, b) => a + b, 0) / history.length;
+    const std = Math.sqrt(history.reduce((s, v) => s + (v - mean) ** 2, 0) / history.length);
+    return std > 0 ? (value - mean) / std : 0;
+};
+
+const CARBON_INTENSITY = {
+    "us-east-1": 428, "us-east-2": 407, "us-west-1": 303, "us-west-2": 136,
+    "eu-west-1": 316, "eu-west-2": 268, "eu-central-1": 338, "eu-north-1": 8,
+    "ap-southeast-1": 493, "ap-southeast-2": 790, "ap-northeast-1": 506,
+    "ca-central-1": 120, "sa-east-1": 109,
+    "eastus": 428, "eastus2": 407, "westus": 303, "westus2": 136,
+    "northeurope": 316, "westeurope": 338, "uksouth": 268, "swedencentral": 8,
+    "southeastasia": 493, "australiaeast": 790, "japaneast": 506,
+    default: 400,
+};
+const getCarbonFactor = region => CARBON_INTENSITY[region] || CARBON_INTENSITY.default;
+const getInstanceKwh = type => {
+    if (!type) return 0.1;
+    if (/48x|32x|24x/.test(type)) return 1.2;
+    if (/16x|12x|8x/.test(type)) return 0.8;
+    if (/4x/.test(type)) return 0.4;
+    if (/2x|xlarge/.test(type)) return 0.2;
+    return 0.1;
+};
+
+const fetchAzurePrice = async (skuName, region = "eastus") => {
+    try {
+        const filter = encodeURIComponent(`serviceName eq 'Virtual Machines' and armRegionName eq '${region}' and skuName eq '${skuName}' and priceType eq 'Consumption'`);
+        const res = await fetch(`https://prices.azure.com/api/retail/prices?$filter=${filter}&$top=1`);
+        const data = await res.json();
+        return data.Items?.[0]?.retailPrice || null;
+    } catch { return null; }
+};
+
+const fetchAWSPrice = async (instanceType, region = "us-east-1") => {
+    const table = {
+        "t3.micro": 0.0104, "t3.small": 0.0208, "t3.medium": 0.0416, "t3.large": 0.0832,
+        "t3.xlarge": 0.1664, "t3.2xlarge": 0.3328,
+        "m5.large": 0.096, "m5.xlarge": 0.192, "m5.2xlarge": 0.384, "m5.4xlarge": 0.768,
+        "m5.8xlarge": 1.536, "m5.16xlarge": 3.072,
+        "c5.large": 0.085, "c5.xlarge": 0.17, "c5.2xlarge": 0.34, "c5.4xlarge": 0.68,
+        "r5.large": 0.126, "r5.xlarge": 0.252, "r5.2xlarge": 0.504, "r5.4xlarge": 1.008,
+    };
+    return table[instanceType] || null;
+};
+
+const computeRISaving = (instanceType, hoursPerMonth = 730, discount = 0.40) => {
+    const odRates = {
+        "t3.micro": 0.0104, "t3.small": 0.0208, "t3.medium": 0.0416, "t3.large": 0.0832,
+        "t3.xlarge": 0.1664, "t3.2xlarge": 0.3328,
+        "m5.large": 0.096, "m5.xlarge": 0.192, "m5.2xlarge": 0.384, "m5.4xlarge": 0.768,
+        "m5.8xlarge": 1.536, "m5.16xlarge": 3.072,
+        "c5.large": 0.085, "c5.xlarge": 0.17, "c5.2xlarge": 0.34, "c5.4xlarge": 0.68,
+        "r5.large": 0.126, "r5.xlarge": 0.252, "r5.2xlarge": 0.504, "r5.4xlarge": 1.008,
+        "Standard_B1s": 0.0104, "Standard_B2s": 0.0416, "Standard_B4ms": 0.166,
+        "Standard_D2s_v3": 0.096, "Standard_D4s_v3": 0.192, "Standard_D8s_v3": 0.384,
+        "Standard_E2s_v3": 0.126, "Standard_E4s_v3": 0.252,
+        "Standard_F2s_v2": 0.085, "Standard_F4s_v2": 0.17,
+    };
+    const hourly = odRates[instanceType];
+    if (!hourly) return null;
+    return hourly * hoursPerMonth * discount;
+};
+
+// ── Main FinOps component ──────────────────────────────────────────────────────
+const FinOpsSection = ({ awsData, selectedCloud, accountId: propAccountId }) => {
+
+    const [activeTab, setActiveTab] = useState(() => { try { return localStorage.getItem("fo2-tab") || "overview"; } catch { return "overview"; } });
+    const [activeRole, setActiveRole] = useState("finops");
+    const [showBudgetModal, setShowBudgetModal] = useState(false);
+    const [newBudget, setNewBudget] = useState({ name: "", amount: "", period: "Monthly", service: "All Services", alertAt: 80 });
+    const [savedBudgets, setSavedBudgets] = useState(() => { try { return JSON.parse(localStorage.getItem("fo2-budgets") || "[]"); } catch { return []; } });
+    const [dateRange, setDateRange] = useState("30d");
+    const [sortCol, setSortCol] = useState("cost");
+    const [sortDir, setSortDir] = useState("desc");
     const [whatIfChanges, setWhatIfChanges] = useState({});
     const [allocationTag, setAllocationTag] = useState("environment");
+    const [allocationMode, setAllocationMode] = useState("proportional");
+    const [unitMetrics, setUnitMetrics] = useState({ users: "", requests: "", deploys: "" });
+    const [optimTasks, setOptimTasks] = useState(() => { try { return JSON.parse(localStorage.getItem("fo2-tasks") || "[]"); } catch { return []; } });
+    const [pricingCache, setPricingCache] = useState({});
+    const [carbonView, setCarbonView] = useState("region");
 
-    // ── normalise ─────────────────────────────────────────────────────────────
-    const isAzure     = awsData?.cloud === "azure";
-    const accountId   = propAccountId
-        || (isAzure ? awsData?.identity?.subscription_id : awsData?.identity?.account_id)
-        || "";
-
-    const costs     = awsData?.costs    || {};
-    const byService = costs.by_service  || {};
-
+    // ── normalise ──────────────────────────────────────────────────────────────
+    const isAzure = awsData?.cloud === "azure";
+    const accountId = propAccountId || (isAzure ? awsData?.identity?.subscription_id : awsData?.identity?.account_id) || "";
+    const costs = awsData?.costs || {};
+    const byService = costs.by_service || {};
     const total = (() => {
-        if (typeof costs.total  === "number") return costs.total;
+        if (typeof costs.total === "number") return costs.total;
         if (typeof costs.amount === "number") return costs.amount;
         return Object.values(byService).reduce((s, v) => s + (Number(v) || 0), 0);
     })();
-
     const forecast = (() => {
-        if (typeof costs.forecast        === "number") return costs.forecast;
+        if (typeof costs.forecast === "number") return costs.forecast;
         if (typeof costs.forecast_amount === "number") return costs.forecast_amount;
         return null;
     })();
-
-    const regions  = awsData?.regions || Object.keys(awsData?.services || {});
+    const regions = awsData?.regions || Object.keys(awsData?.services || {});
     const services = awsData?.services || {};
     const costUnavailable = !!costs.error;
 
-    // ── cloud config ──────────────────────────────────────────────────────────
     const cloudCfg = {
-        aws:   { name: "Amazon AWS",      color: "#FF9900", icon: "☁",  serviceLabel: "AWS Service" },
-        azure: { name: "Microsoft Azure", color: "#0089D6", icon: "⬡",  serviceLabel: "Azure Service" },
-        gcp:   { name: "Google Cloud",    color: "#4285F4", icon: "◈",  serviceLabel: "GCP Service" },
+        aws: { name: "Amazon AWS", color: "#FF9900", icon: "☁", serviceLabel: "AWS Service" },
+        azure: { name: "Microsoft Azure", color: "#0089D6", icon: "⬡", serviceLabel: "Azure Service" },
+        gcp: { name: "Google Cloud", color: "#4285F4", icon: "◈", serviceLabel: "GCP Service" },
     };
     const cloud = cloudCfg[isAzure ? "azure" : (selectedCloud || "aws")] || cloudCfg.aws;
 
-    // ── resource counts ───────────────────────────────────────────────────────
-    const ec2Count    = isAzure
-        ? Object.values(services).reduce((s, r) => s + (r?.virtual_machines?.length || 0), 0)
-        : Object.values(services).reduce((s, r) => s + (r?.ec2?.length || 0), 0);
-    const rdsCount    = isAzure
+    // ── resource counts ────────────────────────────────────────────────────────
+    const allInstances = useMemo(() => {
+        const list = [];
+        Object.entries(services).forEach(([region, rd]) => {
+            const insts = isAzure ? (rd?.virtual_machines || []) : (rd?.ec2 || []);
+            insts.forEach(i => list.push({ ...i, _region: region }));
+        });
+        return list;
+    }, [services, isAzure]);
+
+    const ec2Count = allInstances.length;
+    const rdsCount = isAzure
         ? Object.values(services).reduce((s, r) => s + (r?.sql_databases?.length || 0), 0)
         : Object.values(services).reduce((s, r) => s + (r?.rds?.length || 0), 0);
     const lambdaCount = isAzure
         ? Object.values(services).reduce((s, r) => s + (r?.azure_functions?.length || 0), 0)
         : Object.values(services).reduce((s, r) => s + (r?.lambda_fn?.length || 0), 0);
-    const eksCount    = isAzure
+    const eksCount = isAzure
         ? Object.values(services).reduce((s, r) => s + (r?.aks_clusters?.length || 0), 0)
         : Object.values(services).reduce((s, r) => s + (r?.eks?.length || 0), 0);
-    const s3Count     = isAzure ? (awsData?.storage_accounts || []).length : (awsData?.s3 || []).length;
+    const s3Count = isAzure ? (awsData?.storage_accounts || []).length : (awsData?.s3 || []).length;
 
-    // ── stable monthly trend ──────────────────────────────────────────────────
+    // ── monthly history + regression ──────────────────────────────────────────
+    const monthlyHistory = useMemo(() => {
+        const raw = costs.monthly_history || [];
+        return raw.length > 0 ? raw.map(Number) : [total];
+    }, [costs.monthly_history, total]);
+
+    const regression = useMemo(() => linearRegression(monthlyHistory), [monthlyHistory]);
+
     const monthTrend = useMemo(() => {
         const now = new Date();
-        // Use real billing history if backend provides it; else seed-stable estimates
-        const history = costs.monthly_history || [];
+        const hasHistory = monthlyHistory.length > 1;
         return Array.from({ length: 6 }, (_, i) => {
             const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
             const label = d.toLocaleString("default", { month: "short", year: "2-digit" });
             const isCurrent = i === 5;
-            if (history[i] != null) return { month: label, cost: Number(history[i].toFixed(2)), isCurrent };
+            if (hasHistory) {
+                const idx = monthlyHistory.length - 6 + i;
+                const cost = idx >= 0 ? monthlyHistory[idx] : regression.predict(i);
+                return { month: label, cost: Math.max(0, parseFloat(cost.toFixed(2))), isCurrent, isReal: idx >= 0 };
+            }
             const seed = (i * 17 + 3) % 10;
-            const mult = 0.70 + (seed / 10) * 0.60;
-            return { month: label, cost: parseFloat((isCurrent ? total : total * mult).toFixed(2)), isCurrent };
+            return { month: label, cost: parseFloat((isCurrent ? total : total * (0.70 + (seed / 10) * 0.60)).toFixed(2)), isCurrent, isReal: isCurrent };
         });
-    }, [total, costs.monthly_history]);
+    }, [monthlyHistory, total, regression]);
+
+    const regressionForecast = useMemo(() => {
+        if (monthlyHistory.length < 3) return null;
+        return Math.max(0, regression.predict(monthlyHistory.length));
+    }, [monthlyHistory, regression]);
 
     const prevMonthCost = monthTrend[4]?.cost || 0;
-    const momChange     = prevMonthCost > 0 ? ((total - prevMonthCost) / prevMonthCost * 100) : 0;
-    const momUp         = momChange >= 0;
+    const momChange = prevMonthCost > 0 ? ((total - prevMonthCost) / prevMonthCost * 100) : 0;
+    const momUp = momChange >= 0;
 
-    // ── waterfall data (MoM deltas) ────────────────────────────────────────────
-    const waterfallData = useMemo(() => {
-        return monthTrend.slice(1).map((m, i) => {
-            const prev = monthTrend[i].cost;
-            const delta = m.cost - prev;
-            return { month: m.month, base: Math.min(prev, m.cost), delta, positive: delta >= 0, total: m.cost };
+    const waterfallData = useMemo(() =>
+        monthTrend.slice(1).map((m, i) => ({
+            month: m.month, delta: m.cost - monthTrend[i].cost, positive: m.cost > monthTrend[i].cost,
+        })), [monthTrend]);
+
+    // ── per-service history ────────────────────────────────────────────────────
+    const serviceHistory = useMemo(() => {
+        const hist = costs.service_history || {};
+        const result = {};
+        Object.entries(byService).forEach(([name, val]) => {
+            if (hist[name]) { result[name] = hist[name].map(Number); return; }
+            const frac = total > 0 ? (Number(val) || 0) / total : 0;
+            result[name] = monthTrend.map(m => parseFloat((m.cost * frac).toFixed(2)));
         });
-    }, [monthTrend]);
+        return result;
+    }, [costs.service_history, byService, total, monthTrend]);
 
-    // ── anomaly detection ─────────────────────────────────────────────────────
+    // ── Z-score anomalies ──────────────────────────────────────────────────────
     const anomalies = useMemo(() => {
         const results = [];
-        const avgPerService = total / Math.max(Object.keys(byService).length, 1);
         Object.entries(byService).forEach(([name, val]) => {
             const v = Number(val) || 0;
-            const ratio = avgPerService > 0 ? v / avgPerService : 0;
-            if (ratio > 2.5) {
+            const hist = serviceHistory[name] || [];
+            const z = zScore(v, hist.slice(0, -1));
+            if (Math.abs(z) > 2) {
+                const histMean = hist.length > 1 ? hist.slice(0, -1).reduce((a, b) => a + b, 0) / (hist.length - 1) : v;
+                const histStd = hist.length > 1 ? Math.sqrt(hist.slice(0, -1).reduce((s, x) => s + (x - histMean) ** 2, 0) / (hist.length - 1)) : 0;
                 results.push({
-                    service: name,
-                    cost: v,
-                    ratio,
-                    severity: ratio > 5 ? "critical" : ratio > 3.5 ? "high" : "medium",
-                    suggestion: ratio > 5
-                        ? "Immediate review required — cost is far above expected baseline."
-                        : ratio > 3.5
-                            ? "Review recent deployments or usage spikes in this service."
-                            : "Monitor closely — above average but may be expected growth.",
+                    service: name, cost: v, z,
+                    expectedLow: Math.max(0, histMean - 2 * histStd),
+                    expectedHigh: histMean + 2 * histStd,
+                    severity: Math.abs(z) > 4 ? "critical" : Math.abs(z) > 3 ? "high" : "medium",
+                    suggestion: z > 0
+                        ? `Spend is ${z.toFixed(1)}σ above its 6-month baseline (expected ${fmt(histMean, 0)}–${fmt(histMean + 2 * histStd, 0)}).`
+                        : `Spend is ${Math.abs(z).toFixed(1)}σ below baseline — verify resources are still running.`,
                 });
             }
         });
-
-        // Day-over-day burn anomaly
-        const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-        const dayOfMonth  = new Date().getDate();
-        const dailyBurn   = dayOfMonth > 0 ? total / dayOfMonth : 0;
-        const projectedEnd = dailyBurn * daysInMonth;
-        if (forecast && projectedEnd > forecast * 1.2) {
+        const dim = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+        const dom = new Date().getDate();
+        const burn = dom > 0 ? total / dom : 0;
+        const proj = burn * dim;
+        const fc = regressionForecast || forecast;
+        if (fc && proj > fc * 1.2) {
             results.unshift({
-                service: "Overall spend trajectory",
-                cost: projectedEnd,
-                ratio: projectedEnd / (forecast || 1),
+                service: "Overall burn trajectory", cost: proj, z: 3.5,
+                expectedLow: 0, expectedHigh: fc,
                 severity: "high",
-                suggestion: `Daily burn rate (${fmt(dailyBurn, 2)}/day) projects to ${fmt(projectedEnd)} — ${((projectedEnd / forecast - 1) * 100).toFixed(0)}% over forecast.`,
+                suggestion: `Daily burn ${fmt(burn, 2)}/day → projected ${fmt(proj)} (+${((proj / fc - 1) * 100).toFixed(0)}% over ${regressionForecast ? "regression" : "backend"} forecast of ${fmt(fc)}).`,
             });
         }
-        return results.sort((a, b) => b.cost - a.cost);
-    }, [byService, total, forecast]);
+        return results.sort((a, b) => Math.abs(b.z) - Math.abs(a.z));
+    }, [byService, serviceHistory, total, forecast, regressionForecast]);
 
-    // ── rightsizing candidates ─────────────────────────────────────────────────
+    // ── rightsizing with real pricing ──────────────────────────────────────────
     const rightsizingCandidates = useMemo(() => {
         const items = [];
-        // EC2 / VMs: flag instances that appear to be oversized (heuristic from type name)
-        Object.entries(services).forEach(([region, regionData]) => {
-            const instances = isAzure
-                ? (regionData?.virtual_machines || [])
-                : (regionData?.ec2 || []);
-            instances.forEach(inst => {
-                const type   = inst.InstanceType || inst.vm_size || inst.type || "";
-                const state  = inst.State?.Name || inst.state || inst.power_state || "";
-                const name   = inst.name || inst.Tags?.find?.(t => t.Key === "Name")?.Value || inst.InstanceId || inst.id || "—";
-                const isLarge = /\.(4x|8x|12x|16x|24x|32x|48x|large|xlarge)/i.test(type);
-                const isStopped = /stop|deallocat/i.test(state);
-                if (isStopped) {
-                    items.push({ resource: name, type, region, issue: "Stopped / deallocated", action: "Delete if not needed", saving: 18, severity: "high" });
-                } else if (isLarge) {
-                    items.push({ resource: name, type, region, issue: "Large instance type", action: "Review utilisation; downsize if < 40% CPU", saving: 12, severity: "medium" });
-                }
-            });
-            // Lambda: flag high memory
-            const lambdas = regionData?.lambda_fn || regionData?.azure_functions || [];
-            lambdas.forEach(fn => {
+        allInstances.forEach(inst => {
+            const type = inst.InstanceType || inst.vm_size || inst.type || "";
+            const state = inst.State?.Name || inst.state || inst.power_state || "";
+            const name = inst.name || inst.Tags?.find?.(t => t.Key === "Name")?.Value || inst.InstanceId || inst.id || "—";
+            const region = inst._region || "unknown";
+            const riSaving = computeRISaving(type) || 0;
+            const isLarge = /\.(4x|8x|12x|16x|24x|32x|large|xlarge)/i.test(type);
+            const isStopped = /stop|deallocat/i.test(state);
+            if (isStopped) {
+                const hrRate = computeRISaving(type, 730, 1) || 18;
+                items.push({ resource: name, type, region, issue: "Stopped / deallocated", action: "Delete if not needed", saving: hrRate, severity: "high", pricing: "exact" });
+            } else if (riSaving > 0) {
+                items.push({ resource: name, type, region, issue: "No Reserved Instance", action: `Buy 1-yr RI or Savings Plan for ${type}`, saving: riSaving, severity: "high", pricing: "exact" });
+            } else if (isLarge) {
+                items.push({ resource: name, type, region, issue: "Large instance — no pricing data", action: "Review utilisation; downsize if <40% CPU", saving: 20, severity: "medium", pricing: "estimate" });
+            }
+        });
+        Object.entries(services).forEach(([region, rd]) => {
+            (rd?.lambda_fn || rd?.azure_functions || []).forEach(fn => {
                 const mem = fn.MemorySize || fn.memory_mb || 0;
                 const name = fn.FunctionName || fn.name || "—";
-                if (mem >= 1024) {
-                    items.push({ resource: name, type: `Lambda ${mem}MB`, region, issue: "High memory allocation", action: "Profile and reduce memory if under-utilised", saving: 4, severity: "low" });
-                }
+                if (mem >= 1024) items.push({ resource: name, type: `Lambda ${mem}MB`, region, issue: "High memory allocation", action: "Profile and reduce if under-utilised", saving: parseFloat((mem / 1024 * 0.0000166667 * 730 * 0.4).toFixed(2)), severity: "low", pricing: "estimate" });
             });
         });
-        return items.slice(0, 20);
-    }, [services, isAzure]);
+        return items.slice(0, 30);
+    }, [allInstances, services, isAzure]);
 
     const rightsizingSavings = rightsizingCandidates.reduce((s, r) => s + r.saving, 0);
 
-    // ── cost allocation by tag ─────────────────────────────────────────────────
+    // ── cost allocation ────────────────────────────────────────────────────────
     const allocationData = useMemo(() => {
         const groups = {};
-        const tagKeys = ["environment", "env", "team", "project", "owner", "costcenter"];
         const activeKey = allocationTag.toLowerCase();
-
-        Object.entries(services).forEach(([region, regionData]) => {
-            const instances = isAzure
-                ? (regionData?.virtual_machines || [])
-                : (regionData?.ec2 || []);
-            instances.forEach(inst => {
-                let tagVal = "untagged";
-                if (isAzure) {
-                    const tags = inst.tags || inst.Tags || {};
-                    const k = Object.keys(tags).find(k => k.toLowerCase() === activeKey);
-                    tagVal = k ? (tags[k] || "untagged") : "untagged";
-                } else {
-                    const tags = inst.Tags || inst.tags || [];
-                    const t = tags.find(t => (t.Key || t.key || "").toLowerCase() === activeKey);
-                    tagVal = t ? (t.Value || t.value || "untagged") : "untagged";
-                }
-                if (!groups[tagVal]) groups[tagVal] = { count: 0, estimatedCost: 0 };
-                groups[tagVal].count++;
-                groups[tagVal].estimatedCost += 15; // heuristic $15/instance/month
-            });
+        let totalTagged = 0, totalUntagged = 0;
+        allInstances.forEach(inst => {
+            let tagVal = "untagged";
+            if (isAzure) {
+                const tags = inst.tags || inst.Tags || {};
+                const k = Object.keys(tags).find(k => k.toLowerCase() === activeKey);
+                tagVal = k ? (tags[k] || "untagged") : "untagged";
+            } else {
+                const tags = inst.Tags || inst.tags || [];
+                const t = tags.find(t => (t.Key || t.key || "").toLowerCase() === activeKey);
+                tagVal = t ? (t.Value || t.value || "untagged") : "untagged";
+            }
+            if (!groups[tagVal]) groups[tagVal] = { count: 0, directCost: 0 };
+            groups[tagVal].count++;
+            tagVal === "untagged" ? totalUntagged++ : totalTagged++;
         });
-
-        // Blend with actual service costs if available
-        const totalInstances = Object.values(groups).reduce((s, g) => s + g.count, 0);
-        if (totalInstances > 0 && total > 0) {
-            Object.values(groups).forEach(g => {
-                g.estimatedCost = (g.count / totalInstances) * total;
-            });
+        const totalInst = totalTagged + totalUntagged;
+        const untaggedCost = totalInst > 0 ? (totalUntagged / totalInst) * total : 0;
+        const taggedCost = total - untaggedCost;
+        Object.entries(groups).forEach(([tag, g]) => {
+            const directShare = totalTagged > 0 && tag !== "untagged" ? (g.count / totalTagged) * taggedCost : 0;
+            let sharedShare = 0;
+            if (tag !== "untagged") {
+                const others = Object.keys(groups).filter(k => k !== "untagged").length;
+                if (allocationMode === "proportional") sharedShare = totalTagged > 0 ? (g.count / totalTagged) * untaggedCost : 0;
+                else if (allocationMode === "even") sharedShare = others > 0 ? untaggedCost / others : 0;
+                else sharedShare = 0;
+            }
+            g.directCost = parseFloat(directShare.toFixed(2));
+            g.sharedCost = parseFloat(sharedShare.toFixed(2));
+            g.estimatedCost = parseFloat((directShare + sharedShare).toFixed(2));
+        });
+        if (groups.untagged) {
+            groups.untagged.directCost = parseFloat(untaggedCost.toFixed(2));
+            groups.untagged.sharedCost = 0;
+            groups.untagged.estimatedCost = allocationMode === "fixed" ? parseFloat(untaggedCost.toFixed(2)) : 0;
         }
-
-        return Object.entries(groups)
-            .map(([tag, data]) => ({ tag, ...data }))
-            .sort((a, b) => b.estimatedCost - a.estimatedCost);
-    }, [services, isAzure, allocationTag, total]);
+        return Object.entries(groups).map(([tag, data]) => ({ tag, ...data })).sort((a, b) => b.estimatedCost - a.estimatedCost);
+    }, [allInstances, isAzure, allocationTag, allocationMode, total]);
 
     const untaggedPct = useMemo(() => {
-        const untagged = allocationData.find(d => d.tag === "untagged");
-        const totalCount = allocationData.reduce((s, d) => s + d.count, 0);
-        return totalCount > 0 ? ((untagged?.count || 0) / totalCount * 100).toFixed(0) : 0;
+        const u = allocationData.find(d => d.tag === "untagged");
+        const tc = allocationData.reduce((s, d) => s + d.count, 0);
+        return tc > 0 ? ((u?.count || 0) / tc * 100).toFixed(0) : 0;
     }, [allocationData]);
 
-    // ── what-if simulation ────────────────────────────────────────────────────
+    // ── what-if ────────────────────────────────────────────────────────────────
     const whatIfTotal = useMemo(() => {
         let adj = total;
-        Object.entries(whatIfChanges).forEach(([service, changePct]) => {
-            const base = Number(byService[service]) || 0;
-            adj += base * (changePct / 100);
-        });
+        Object.entries(whatIfChanges).forEach(([svc, c]) => { adj += (Number(byService[svc]) || 0) * (c / 100); });
         return adj;
     }, [whatIfChanges, total, byService]);
-
-    const whatIfDelta  = whatIfTotal - total;
+    const whatIfDelta = whatIfTotal - total;
     const whatIfSaving = whatIfDelta < 0 ? Math.abs(whatIfDelta) : 0;
 
-    // ── category breakdown ────────────────────────────────────────────────────
+    // ── category breakdown ─────────────────────────────────────────────────────
     const categoryBreakdown = useMemo(() => {
         const cats = isAzure ? [
-            { name: "Compute",  color: "#378ADD", test: k => /Virtual Machine|Container|Function|Kubernetes|App Service|Batch|Compute|AKS/i.test(k) },
-            { name: "Storage",  color: "#8B5CF6", test: k => /Storage|Blob|Disk|File|Backup|Archive|Data Lake/i.test(k) },
+            { name: "Compute", color: "#378ADD", test: k => /Virtual Machine|Container|Function|Kubernetes|App Service|Batch|Compute|AKS/i.test(k) },
+            { name: "Storage", color: "#8B5CF6", test: k => /Storage|Blob|Disk|File|Backup|Archive|Data Lake/i.test(k) },
             { name: "Database", color: "#1D9E75", test: k => /SQL|Cosmos|Cache|Synapse|Database|Redis|PostgreSQL|MySQL/i.test(k) },
-            { name: "Network",  color: "#BA7517", test: k => /CDN|DNS|VPN|Gateway|Bandwidth|Load Balancer|Traffic|Front Door|Firewall/i.test(k) },
-            { name: "AI / ML",  color: "#993C1D", test: k => /Cognitive|OpenAI|Machine Learning|Search|Bot|Language|Vision/i.test(k) },
+            { name: "Network", color: "#BA7517", test: k => /CDN|DNS|VPN|Gateway|Bandwidth|Load Balancer|Traffic|Front Door|Firewall/i.test(k) },
+            { name: "AI / ML", color: "#993C1D", test: k => /Cognitive|OpenAI|Machine Learning|Search|Bot|Language|Vision/i.test(k) },
             { name: "Security", color: "#E24B4A", test: k => /Security|Defender|Sentinel|Key Vault|Monitor|Policy/i.test(k) },
         ] : [
-            { name: "Compute",  color: "#378ADD", test: k => /EC2|Compute|Lambda|ECS|EKS|Fargate/i.test(k) },
-            { name: "Storage",  color: "#8B5CF6", test: k => /S3|Storage|EBS|Glacier|EFS/i.test(k) },
+            { name: "Compute", color: "#378ADD", test: k => /EC2|Compute|Lambda|ECS|EKS|Fargate/i.test(k) },
+            { name: "Storage", color: "#8B5CF6", test: k => /S3|Storage|EBS|Glacier|EFS/i.test(k) },
             { name: "Database", color: "#1D9E75", test: k => /RDS|DynamoDB|ElastiCache|Redshift|Aurora/i.test(k) },
-            { name: "Network",  color: "#BA7517", test: k => /CloudFront|Route|VPC|Transfer|API/i.test(k) },
+            { name: "Network", color: "#BA7517", test: k => /CloudFront|Route|VPC|Transfer|API/i.test(k) },
         ];
-        const result = cats.map(c => ({
-            name: c.name, color: c.color,
-            value: Object.entries(byService).filter(([k]) => c.test(k)).reduce((s, [, v]) => s + (Number(v) || 0), 0),
-        }));
-        const categorized = result.reduce((s, c) => s + c.value, 0);
-        const other = Math.max(0, total - categorized);
+        const result = cats.map(c => ({ name: c.name, color: c.color, value: Object.entries(byService).filter(([k]) => c.test(k)).reduce((s, [, v]) => s + (Number(v) || 0), 0) }));
+        const other = Math.max(0, total - result.reduce((s, c) => s + c.value, 0));
         if (other > 0.01) result.push({ name: "Other", color: "#888780", value: other });
         return result.filter(c => c.value > 0.001);
     }, [byService, total, isAzure]);
 
-    // ── top services (sortable) ────────────────────────────────────────────────
+    // ── top services ───────────────────────────────────────────────────────────
     const topServices = useMemo(() => {
         const entries = Object.entries(byService).map(([name, val]) => ({ name, val: Number(val) || 0 }));
         if (sortCol === "name") entries.sort((a, b) => sortDir === "desc" ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name));
@@ -3692,210 +3783,299 @@ const FinOpsSection = ({ awsData, selectedCloud, accountId: propAccountId }) => 
         return entries.slice(0, 12);
     }, [byService, sortCol, sortDir]);
 
-    const maxCost   = topServices[0]?.val || 1;
-    const handleSort = col => {
-        if (sortCol === col) setSortDir(d => d === "desc" ? "asc" : "desc");
-        else { setSortCol(col); setSortDir("desc"); }
-    };
+    const maxCost = topServices[0]?.val || 1;
+    const handleSort = col => { if (sortCol === col) setSortDir(d => d === "desc" ? "asc" : "desc"); else { setSortCol(col); setSortDir("desc"); } };
     const sortArrow = col => sortCol === col ? (sortDir === "desc" ? " ↓" : " ↑") : "";
 
-    // ── burn rate ─────────────────────────────────────────────────────────────
+    // ── burn rate ──────────────────────────────────────────────────────────────
     const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-    const dayOfMonth  = new Date().getDate();
-    const dailyBurn   = dayOfMonth > 0 ? total / dayOfMonth : 0;
-    const daysLeft    = daysInMonth - dayOfMonth;
+    const dayOfMonth = new Date().getDate();
+    const dailyBurn = dayOfMonth > 0 ? total / dayOfMonth : 0;
+    const daysLeft = daysInMonth - dayOfMonth;
     const projectedMonthEnd = dailyBurn * daysInMonth;
 
-    // ── region × service heatmap ──────────────────────────────────────────────
-    const heatmapServices = topServices.slice(0, 5).map(s => s.name);
-    const heatmapRegions  = regions.slice(0, 6);
-    const heatmapMax      = total > 0 ? total / Math.max(heatmapRegions.length, 1) / Math.max(heatmapServices.length, 1) : 1;
-    const heatCell = (region, service) => {
-        const base = (Number(byService[service]) || 0) / Math.max(heatmapRegions.length, 1);
-        const seed  = (region.length + service.length) % 5;
-        return base * (0.4 + seed * 0.15);
-    };
+    // ── carbon tracking ────────────────────────────────────────────────────────
+    const carbonData = useMemo(() => {
+        const regionCarbon = {};
+        let totalCO2e = 0;
+        allInstances.forEach(inst => {
+            const region = inst._region || "default";
+            const type = inst.InstanceType || inst.vm_size || inst.type || "";
+            const state = inst.State?.Name || inst.state || "";
+            if (/stop|deallocat/i.test(state)) return;
+            const kwh = getInstanceKwh(type);
+            const factor = getCarbonFactor(region);
+            const monthly_kwh = kwh * 730;
+            const monthly_co2e = monthly_kwh * factor / 1000;
+            if (!regionCarbon[region]) regionCarbon[region] = { instances: 0, kwh: 0, co2eKg: 0, factor };
+            regionCarbon[region].instances++;
+            regionCarbon[region].kwh += monthly_kwh;
+            regionCarbon[region].co2eKg += monthly_co2e;
+            totalCO2e += monthly_co2e;
+        });
+        const sorted = Object.entries(regionCarbon)
+            .map(([r, d]) => ({ region: r, ...d, co2eTonnes: d.co2eKg / 1000 }))
+            .sort((a, b) => b.co2eKg - a.co2eKg);
+        const greenRegions = isAzure
+            ? { "eastus": "swedencentral", "eastus2": "swedencentral", "westeurope": "swedencentral" }
+            : { "us-east-1": "eu-north-1", "ap-southeast-2": "eu-north-1", "us-east-2": "us-west-2" };
+        const worstRegion = sorted[0];
+        const greenAlt = worstRegion ? (greenRegions[worstRegion.region] || "eu-north-1") : null;
+        const greenFactor = greenAlt ? (getCarbonFactor(greenAlt) || 8) : 8;
+        const greenSavingCO2 = worstRegion ? worstRegion.co2eKg * (1 - greenFactor / worstRegion.factor) : 0;
+        return { regions: sorted, totalCO2eKg: totalCO2e, totalCO2eTonnes: totalCO2e / 1000, greenAlt, greenSavingCO2, worstRegion };
+    }, [allInstances, isAzure]);
 
-    // ── savings recommendations ───────────────────────────────────────────────
+    // ── unit economics ─────────────────────────────────────────────────────────
+    const unitEconomics = useMemo(() => {
+        const users = parseFloat(unitMetrics.users) || 0;
+        const requests = parseFloat(unitMetrics.requests) || 0;
+        const deploys = parseFloat(unitMetrics.deploys) || 0;
+        return {
+            perUser: users > 0 ? total / users : null,
+            perRequest: requests > 0 ? total / requests : null,
+            perDeploy: deploys > 0 ? total / deploys : null,
+        };
+    }, [unitMetrics, total]);
+
+    // ── maturity scoring ───────────────────────────────────────────────────────
+    const maturity = useMemo(() => {
+        const caps = [
+            { name: "Cost Visibility", crawl: total > 0, walk: Object.keys(byService).length > 3, run: monthlyHistory.length >= 6, desc: "Can you see what you spend?" },
+            { name: "Tagging Coverage", crawl: allInstances.length > 0, walk: Number(untaggedPct) < 50, run: Number(untaggedPct) < 10, desc: "Are resources tagged for allocation?" },
+            { name: "Forecasting", crawl: !!forecast, walk: monthlyHistory.length >= 3, run: monthlyHistory.length >= 6, desc: "Can you predict next month's spend?" },
+            { name: "Anomaly Detection", crawl: anomalies.length >= 0, walk: monthlyHistory.length >= 3, run: monthlyHistory.length >= 6, desc: "Are cost spikes automatically caught?" },
+            { name: "Rightsizing", crawl: rightsizingCandidates.length >= 0, walk: rightsizingSavings > 0, run: optimTasks.filter(t => t.status === "resolved").length > 0, desc: "Are idle/oversized resources removed?" },
+            { name: "Chargeback / Showback", crawl: allocationData.length > 0, walk: Number(untaggedPct) < 40, run: Number(untaggedPct) < 10 && allocationMode === "proportional", desc: "Are teams accountable for their spend?" },
+            { name: "Reserved Capacity", crawl: true, walk: ec2Count > 0, run: rightsizingCandidates.filter(r => r.issue.includes("No Reserved")).length === 0, desc: "Are commitments optimised?" },
+            { name: "Optimization Workflow", crawl: true, walk: optimTasks.length > 0, run: optimTasks.filter(t => t.status === "resolved").length > 0, desc: "Do recommendations get actioned?" },
+            { name: "Unit Economics", crawl: false, walk: !!unitEconomics.perUser || !!unitEconomics.perRequest, run: !!unitEconomics.perUser && !!unitEconomics.perRequest, desc: "Do you know cost per business outcome?" },
+            { name: "Carbon Awareness", crawl: false, walk: carbonData.totalCO2eKg > 0, run: carbonData.totalCO2eKg > 0 && ec2Count > 0, desc: "Do you track cloud carbon footprint?" },
+        ];
+        const score = cap => cap.run ? 3 : cap.walk ? 2 : cap.crawl ? 1 : 0;
+        const scores = caps.map(c => ({ ...c, score: score(c), label: ["Not started", "Crawl", "Walk", "Run"][score(c)] }));
+        const avg = scores.reduce((s, c) => s + c.score, 0) / (scores.length * 3);
+        const phase = avg >= 0.67 ? "Run" : avg >= 0.33 ? "Walk" : "Crawl";
+        return { caps: scores, avg, phase };
+    }, [total, byService, monthlyHistory, forecast, anomalies, rightsizingCandidates, rightsizingSavings, allocationData, untaggedPct, allocationMode, optimTasks, unitEconomics, carbonData, ec2Count]);
+
+    // ── savings recommendations ────────────────────────────────────────────────
     const recommendations = useMemo(() => {
         const recs = [];
-        if (isAzure) {
-            if (ec2Count > 0) recs.push({ title: `${ec2Count} VMs running`, desc: "Azure Reserved VM Instances (1–3 yr) save up to 72%.", saving: ec2Count * 18, severity: "high", icon: "🖥", link: "https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Compute%2FvirtualMachines", linkLabel: "View VMs" });
-            if (rdsCount > 0) recs.push({ title: `${rdsCount} SQL Databases`, desc: "Azure SQL Reserved Capacity saves up to 65%.", saving: rdsCount * 28, severity: "high", icon: "🗄", link: null, linkLabel: null });
-            if (eksCount > 0) recs.push({ title: `${eksCount} AKS Clusters`, desc: "Enable cluster autoscaler to avoid over-provisioning.", saving: eksCount * 35, severity: "medium", icon: "🐳", link: null, linkLabel: null });
-            if (s3Count > 0)  recs.push({ title: `${s3Count} Storage Accounts`, desc: "Lifecycle management can tier cold data automatically.", saving: s3Count * 8, severity: "low", icon: "🗂", link: null, linkLabel: null });
-        } else {
-            if (ec2Count > 0) recs.push({ title: `${ec2Count} EC2 instances`, desc: "Reserved Instances or Savings Plans save up to 72%.", saving: ec2Count * 15, severity: "high", icon: "🖥", link: "https://console.aws.amazon.com/ec2/v2/home#ReservedInstances:", linkLabel: "View Reserved" });
-            if (rdsCount > 0) recs.push({ title: `${rdsCount} RDS instances`, desc: "RDS Reserved Instances save up to 69%.", saving: rdsCount * 25, severity: "high", icon: "🗄", link: null, linkLabel: null });
-            if (eksCount > 0) recs.push({ title: `${eksCount} EKS clusters`, desc: "Review node group sizing; use Fargate Spot for batch.", saving: eksCount * 40, severity: "medium", icon: "🐳", link: null, linkLabel: null });
-            if (s3Count > 0)  recs.push({ title: `${s3Count} S3 buckets`, desc: "Intelligent-Tiering moves cold data automatically.", saving: s3Count * 5, severity: "low", icon: "🗂", link: null, linkLabel: null });
-            if (lambdaCount > 5) recs.push({ title: `${lambdaCount} Lambda functions`, desc: "Right-sizing memory can cut costs 20–40%.", saving: lambdaCount * 2, severity: "low", icon: "⚡", link: null, linkLabel: null });
+        const riCandidates = rightsizingCandidates.filter(r => r.issue.includes("No Reserved"));
+        if (riCandidates.length > 0) {
+            const riTotal = riCandidates.reduce((s, r) => s + r.saving, 0);
+            recs.push({ title: `${riCandidates.length} instances without Reserved pricing`, desc: `Purchasing 1-yr Reserved Instances or Savings Plans for these specific instance types saves real money based on current on-demand rates.`, saving: riTotal, severity: "high", icon: "🖥", pricing: "exact", action: "Buy Reserved Instances", link: isAzure ? "https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Compute%2FvirtualMachines" : "https://console.aws.amazon.com/ec2/v2/home#ReservedInstances:" });
+        } else if (ec2Count > 0) {
+            recs.push({ title: `${ec2Count} compute resources`, desc: "Consider Reserved Instances or Savings Plans. Enable detailed cost data for exact savings figures.", saving: ec2Count * 12, severity: "high", icon: "🖥", pricing: "estimate", action: "Review commitments", link: null });
         }
-        if (rightsizingSavings > 0) recs.push({ title: `${rightsizingCandidates.length} rightsizing opportunities`, desc: "Stopped/oversized resources identified. See Rightsizing tab.", saving: rightsizingSavings, severity: "high", icon: "📐", link: null, linkLabel: "Go to Rightsizing" });
-        if (Number(untaggedPct) > 30) recs.push({ title: `${untaggedPct}% resources untagged`, desc: "Tagging improves cost allocation accuracy and chargeback.", saving: 0, severity: "medium", icon: "🏷", link: null, linkLabel: null });
+        const stopped = rightsizingCandidates.filter(r => r.issue.includes("Stopped"));
+        if (stopped.length > 0) recs.push({ title: `${stopped.length} stopped/deallocated resources`, desc: "These resources still incur storage and licensing charges. Delete them if no longer needed.", saving: stopped.reduce((s, r) => s + r.saving, 0), severity: "high", icon: "⛔", pricing: "exact", action: "Delete stopped resources", link: null });
+        if (rdsCount > 0) recs.push({ title: `${rdsCount} database instances`, desc: "RDS/SQL Reserved Instances save up to 65–69%. Applies per engine type.", saving: rdsCount * 25, severity: "high", icon: "🗄", pricing: "estimate", action: "Review database commitments", link: null });
+        if (eksCount > 0) recs.push({ title: `${eksCount} Kubernetes clusters`, desc: "Enable cluster autoscaler and use Spot/Preemptible node pools for non-critical workloads.", saving: eksCount * 35, severity: "medium", icon: "🐳", pricing: "estimate", action: "Enable autoscaler", link: null });
+        if (s3Count > 0) recs.push({ title: `${s3Count} object storage buckets`, desc: "Intelligent-Tiering or lifecycle rules move infrequent data to cheaper tiers automatically.", saving: s3Count * 5, severity: "low", icon: "🗂", pricing: "estimate", action: "Add lifecycle policy", link: null });
+        if (lambdaCount > 5) recs.push({ title: `${lambdaCount} Lambda/Function resources`, desc: "Right-sizing memory with profiling can cut costs 20–40%.", saving: lambdaCount * 2, severity: "low", icon: "⚡", pricing: "estimate", action: "Profile memory usage", link: null });
+        if (Number(untaggedPct) > 30) recs.push({ title: `${untaggedPct}% resources untagged`, desc: "Tagging is a prerequisite for chargeback and accurate cost allocation.", saving: 0, severity: "medium", icon: "🏷", pricing: "n/a", action: "Enforce tag policy", link: null });
+        if (carbonData.worstRegion && carbonData.greenSavingCO2 > 50) recs.push({ title: `High-carbon region: ${carbonData.worstRegion.region}`, desc: `Moving workloads to a lower-carbon region saves ~${fmtN(carbonData.greenSavingCO2 / 1000, 2)} tonnes CO2e/month.`, saving: 0, severity: "low", icon: "🌱", pricing: "n/a", action: "Evaluate region migration", link: null });
+        if (anomalies.filter(a => a.severity === "critical" || a.severity === "high").length > 0) recs.push({ title: `${anomalies.length} cost anomalies detected`, desc: "Z-score analysis found statistically significant deviations from 6-month baselines.", saving: anomalies.reduce((s, a) => s + Math.max(0, a.cost - a.expectedHigh), 0), severity: "critical", icon: "🚨", pricing: "estimate", action: "Review anomalies", link: null });
         return recs;
-    }, [ec2Count, rdsCount, eksCount, s3Count, lambdaCount, isAzure, rightsizingSavings, untaggedPct, rightsizingCandidates.length]);
+    }, [rightsizingCandidates, ec2Count, rdsCount, eksCount, s3Count, lambdaCount, untaggedPct, carbonData, anomalies, isAzure]);
 
     const totalSavings = recommendations.reduce((s, r) => s + r.saving, 0);
+
+    // ── optimization workflow ──────────────────────────────────────────────────
+    const createTask = (rec) => {
+        const task = { id: Date.now(), title: rec.title, action: rec.action, saving: rec.saving, severity: rec.severity, status: "identified", assignee: "", dueDate: "", notes: "", createdAt: new Date().toISOString(), resolvedAt: null };
+        const updated = [...optimTasks, task];
+        setOptimTasks(updated);
+        try { localStorage.setItem("fo2-tasks", JSON.stringify(updated)); } catch {}
+    };
+    const updateTask = (id, changes) => {
+        const updated = optimTasks.map(t => t.id === id ? { ...t, ...changes, resolvedAt: changes.status === "resolved" ? new Date().toISOString() : t.resolvedAt } : t);
+        setOptimTasks(updated);
+        try { localStorage.setItem("fo2-tasks", JSON.stringify(updated)); } catch {}
+    };
+    const deleteTask = id => {
+        const updated = optimTasks.filter(t => t.id !== id);
+        setOptimTasks(updated);
+        try { localStorage.setItem("fo2-tasks", JSON.stringify(updated)); } catch {}
+    };
+    const TASK_STATUSES = ["identified", "assigned", "in_progress", "resolved", "verified"];
+    const TASK_STATUS_LABELS = { identified: "Identified", assigned: "Assigned", in_progress: "In Progress", resolved: "Resolved", verified: "Verified ✓" };
+    const TASK_STATUS_COLORS = { identified: "var(--text3)", assigned: "var(--amber)", in_progress: cloud.color, resolved: "var(--green)", verified: "var(--green)" };
+    const realizedSavings = optimTasks.filter(t => t.status === "resolved" || t.status === "verified").reduce((s, t) => s + t.saving, 0);
 
     // ── budget helpers ─────────────────────────────────────────────────────────
     const saveBudget = () => {
         if (!newBudget.name || !newBudget.amount) return;
         const updated = [...savedBudgets, { ...newBudget, id: Date.now() }];
-        setSavedBudgets(updated);
-        try { localStorage.setItem("cloudops-budgets", JSON.stringify(updated)); } catch {}
-        setShowBudgetModal(false);
-        setNewBudget({ name: "", amount: "", period: "Monthly", service: "All Services", alertAt: 80 });
+        setSavedBudgets(updated); try { localStorage.setItem("fo2-budgets", JSON.stringify(updated)); } catch {}
+        setShowBudgetModal(false); setNewBudget({ name: "", amount: "", period: "Monthly", service: "All Services", alertAt: 80 });
     };
-    const deleteBudget = id => {
-        const updated = savedBudgets.filter(b => b.id !== id);
-        setSavedBudgets(updated);
-        try { localStorage.setItem("cloudops-budgets", JSON.stringify(updated)); } catch {}
-    };
-    const getBudgetSpent = b => {
-        if (!b.service || b.service === "All Services") return total;
-        const key = Object.keys(byService).find(k => k.toLowerCase() === b.service.toLowerCase());
-        return key ? (Number(byService[key]) || 0) : 0;
-    };
+    const deleteBudget = id => { const u = savedBudgets.filter(b => b.id !== id); setSavedBudgets(u); try { localStorage.setItem("fo2-budgets", JSON.stringify(u)); } catch {} };
+    const getBudgetSpent = b => { if (!b.service || b.service === "All Services") return total; const k = Object.keys(byService).find(k => k.toLowerCase() === b.service.toLowerCase()); return k ? (Number(byService[k]) || 0) : 0; };
 
     // ── CSV export ─────────────────────────────────────────────────────────────
     const exportCSV = () => {
-        const rows = [["Rank", "Service", "Cost (USD)", "% of Total"]];
-        topServices.forEach(({ name, val }, i) =>
-            rows.push([i + 1, name, val.toFixed(4), total > 0 ? (val / total * 100).toFixed(2) + "%" : "0%"])
-        );
+        const rows = [["Rank", "Service", "Cost (USD)", "% of Total", "Z-Score"]];
+        topServices.forEach(({ name, val }, i) => {
+            const hist = serviceHistory[name] || [];
+            const z = zScore(val, hist.slice(0, -1));
+            rows.push([i + 1, name, val.toFixed(4), total > 0 ? (val / total * 100).toFixed(2) + "%" : "0%", z.toFixed(2)]);
+        });
         const blob = new Blob([rows.map(r => r.join(",")).join("\n")], { type: "text/csv" });
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `finops-${new Date().toISOString().slice(0, 10)}.csv`;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        URL.revokeObjectURL(a.href);
+        const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `finops-${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
     };
 
-    const dateRangeLabel = { "7d": "Last 7 days", "30d": "Last 30 days", "90d": "Last 90 days" };
+    // ── role-based tab filtering ───────────────────────────────────────────────
+    const roleTabs = {
+        finops: ["overview", "services", "trends", "anomalies", "rightsizing", "allocation", "whatif", "savings", "workflow", "budgets", "carbon", "maturity", "unit"],
+        engineering: ["overview", "services", "rightsizing", "anomalies", "workflow", "carbon"],
+        finance: ["overview", "trends", "allocation", "budgets", "savings", "unit"],
+        executive: ["overview", "trends", "maturity", "unit", "carbon"],
+    };
+    const visibleTabIds = roleTabs[activeRole] || roleTabs.finops;
 
     const tabDefs = [
-        { id: "overview",    label: "📊 Overview" },
-        { id: "services",    label: "🔧 By Service" },
-        { id: "trends",      label: "📈 Trends" },
-        { id: "anomalies",   label: `🚨 Anomalies${anomalies.length > 0 ? ` (${anomalies.length})` : ""}` },
+        { id: "overview", label: "📊 Overview" },
+        { id: "services", label: "🔧 By Service" },
+        { id: "trends", label: "📈 Trends" },
+        { id: "anomalies", label: `🚨 Anomalies${anomalies.length > 0 ? ` (${anomalies.length})` : ""}` },
         { id: "rightsizing", label: `📐 Rightsizing${rightsizingCandidates.length > 0 ? ` (${rightsizingCandidates.length})` : ""}` },
-        { id: "allocation",  label: "🏷 Allocation" },
-        { id: "whatif",      label: "🔮 What-If" },
-        { id: "savings",     label: "💡 Savings" },
-        { id: "budgets",     label: "🎯 Budgets" },
-    ];
+        { id: "allocation", label: "🏷 Allocation" },
+        { id: "whatif", label: "🔮 What-If" },
+        { id: "savings", label: "💡 Savings" },
+        { id: "workflow", label: `⚙️ Workflow${optimTasks.length > 0 ? ` (${optimTasks.length})` : ""}` },
+        { id: "budgets", label: "🎯 Budgets" },
+        { id: "carbon", label: "🌱 Carbon" },
+        { id: "maturity", label: "🏆 Maturity" },
+        { id: "unit", label: "📐 Unit Econ." },
+    ].filter(t => visibleTabIds.includes(t.id));
 
     // ── guard ──────────────────────────────────────────────────────────────────
     if (!awsData) return (
-        <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, padding:40 }}>
-            <div style={{ fontSize:48 }}>💰</div>
-            <div style={{ fontSize:22, fontWeight:700 }}>No cost data available</div>
-            <div style={{ fontSize:14, color:"var(--text2)", textAlign:"center", maxWidth:400 }}>Run a cloud scan first to see cost analytics, recommendations and budget tracking.</div>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 40 }}>
+            <div style={{ fontSize: 48 }}>💰</div>
+            <div style={{ fontSize: 22, fontWeight: 700 }}>No cost data available</div>
+            <div style={{ fontSize: 14, color: "var(--text2)", textAlign: "center", maxWidth: 400 }}>Run a cloud scan first to see FinOps analytics.</div>
         </div>
     );
 
+    // ── sub-components ─────────────────────────────────────────────────────────
+    const dateRangeLabel = { "7d": "Last 7 days", "30d": "Last 30 days", "90d": "Last 90 days" };
+
     const DateFilter = () => (
-        <div style={{ display:"flex", gap:4 }}>
-            {["7d","30d","90d"].map(r => (
-                <button key={r} onClick={() => setDateRange(r)} style={{ padding:"4px 12px", fontSize:11, fontWeight:600, borderRadius:20, cursor:"pointer", border:"1px solid", borderColor: dateRange===r ? cloud.color : "var(--border)", background: dateRange===r ? `${cloud.color}15` : "var(--surface2)", color: dateRange===r ? cloud.color : "var(--text2)" }}>{r}</button>
+        <div style={{ display: "flex", gap: 4 }}>
+            {["7d", "30d", "90d"].map(r => (
+                <button key={r} onClick={() => setDateRange(r)} style={{ padding: "4px 12px", fontSize: 11, fontWeight: 600, borderRadius: 20, cursor: "pointer", border: "1px solid", borderColor: dateRange === r ? cloud.color : "var(--border)", background: dateRange === r ? `${cloud.color}15` : "var(--surface2)", color: dateRange === r ? cloud.color : "var(--text2)" }}>{r}</button>
             ))}
         </div>
     );
 
     const SevBadge = ({ sev }) => {
-        const map = { critical:["var(--red-bg)","var(--red)"], high:["var(--red-bg)","var(--red)"], medium:["var(--amber-bg)","var(--amber)"], low:["var(--green-bg)","var(--green)"] };
+        const map = { critical: ["var(--red-bg)", "var(--red)"], high: ["var(--red-bg)", "var(--red)"], medium: ["var(--amber-bg)", "var(--amber)"], low: ["var(--green-bg)", "var(--green)"] };
         const [bg, color] = map[sev] || map.low;
-        return <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", background:bg, color }}>{sev}</span>;
+        return <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, textTransform: "uppercase", background: bg, color }}>{sev}</span>;
     };
 
-    // ── RENDER ─────────────────────────────────────────────────────────────────
+    const PricingBadge = ({ type }) => type === "exact"
+        ? <span style={{ fontSize: 9, fontWeight: 700, background: "#dcfce7", color: "#166534", borderRadius: 20, padding: "1px 6px" }}>REAL PRICE</span>
+        : <span style={{ fontSize: 9, fontWeight: 700, background: "#fef9c3", color: "#854d0e", borderRadius: 20, padding: "1px 6px" }}>ESTIMATE</span>;
+
+    // ══════════════════════════════════════════════════════════════════════════
     return (
-        <div style={{ flex:1, display:"flex", flexDirection:"column", background:"var(--bg)" }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "var(--bg)", overflow: "hidden" }}>
 
             {/* Header */}
-            <div style={{ height:52, background:"var(--surface)", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", padding:"0 24px", justifyContent:"space-between", position:"sticky", top:0, zIndex:50 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                    <div style={{ width:8, height:8, borderRadius:"50%", background:cloud.color }} />
-                    <span style={{ fontSize:15, fontWeight:600 }}>FinOps</span>
-                    <span style={{ background:`${cloud.color}15`, border:`1px solid ${cloud.color}40`, borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:600, color:cloud.color }}>{cloud.icon} {cloud.name}</span>
+            <div style={{ height: 52, background: "var(--surface)", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", padding: "0 24px", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 50 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: cloud.color }} />
+                    <span style={{ fontSize: 15, fontWeight: 600 }}>FinOps</span>
+                    <span style={{ background: `${cloud.color}15`, border: `1px solid ${cloud.color}40`, borderRadius: 20, padding: "2px 10px", fontSize: 11, fontWeight: 600, color: cloud.color }}>{cloud.icon} {cloud.name}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: maturity.phase === "Run" ? "var(--green-bg)" : maturity.phase === "Walk" ? "var(--amber-bg)" : "var(--surface2)", color: maturity.phase === "Run" ? "var(--green)" : maturity.phase === "Walk" ? "var(--amber)" : "var(--text3)" }}>
+                        {maturity.phase === "Run" ? "🏆" : maturity.phase === "Walk" ? "🚶" : "🐣"} {maturity.phase}
+                    </span>
                 </div>
-                {accountId && (
-                    <div style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 12px", background:"var(--green-bg)", borderRadius:20, fontSize:11, fontWeight:600, color:"var(--green)" }}>
-                        <div style={{ width:6, height:6, borderRadius:"50%", background:"var(--green)" }} />
-                        {accountId}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {/* Role selector */}
+                    <div style={{ display: "flex", gap: 2, background: "var(--surface2)", borderRadius: 8, padding: 2 }}>
+                        {[{ id: "finops", label: "FinOps" }, { id: "engineering", label: "Eng" }, { id: "finance", label: "Finance" }, { id: "executive", label: "Exec" }].map(r => (
+                            <button key={r.id} onClick={() => { setActiveRole(r.id); if (!roleTabs[r.id].includes(activeTab)) setActiveTab(roleTabs[r.id][0]); }} style={{ padding: "3px 10px", fontSize: 11, fontWeight: activeRole === r.id ? 700 : 400, borderRadius: 6, border: "none", cursor: "pointer", background: activeRole === r.id ? "var(--surface)" : "transparent", color: activeRole === r.id ? cloud.color : "var(--text3)", boxShadow: activeRole === r.id ? "0 1px 4px rgba(0,0,0,0.1)" : "none" }}>
+                                {r.label}
+                            </button>
+                        ))}
                     </div>
-                )}
+                    {accountId && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 12px", background: "var(--green-bg)", borderRadius: 20, fontSize: 11, fontWeight: 600, color: "var(--green)" }}>
+                            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--green)" }} />
+                            {accountId}
+                        </div>
+                    )}
+                </div>
             </div>
 
-            {/* Tabs — scrollable row */}
-            <div style={{ background:"var(--surface)", borderBottom:"1px solid var(--border)", padding:"0 24px", display:"flex", gap:2, overflowX:"auto" }}>
+            {/* Tabs */}
+            <div style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)", padding: "0 24px", display: "flex", gap: 2, overflowX: "auto" }}>
                 {tabDefs.map(t => (
-                    <button key={t.id} onClick={() => { setActiveTab(t.id); try { localStorage.setItem("cloudops-finops-tab", t.id); } catch {} }} style={{ padding:"12px 14px", fontSize:12, fontWeight: activeTab===t.id ? 600 : 400, color: activeTab===t.id ? cloud.color : "var(--text2)", background:"none", border:"none", cursor:"pointer", borderBottom: activeTab===t.id ? `2px solid ${cloud.color}` : "2px solid transparent", whiteSpace:"nowrap", transition:"all 0.15s" }}>
+                    <button key={t.id} onClick={() => { setActiveTab(t.id); try { localStorage.setItem("fo2-tab", t.id); } catch {} }} style={{ padding: "12px 14px", fontSize: 12, fontWeight: activeTab === t.id ? 600 : 400, color: activeTab === t.id ? cloud.color : "var(--text2)", background: "none", border: "none", cursor: "pointer", borderBottom: activeTab === t.id ? `2px solid ${cloud.color}` : "2px solid transparent", whiteSpace: "nowrap", transition: "all 0.15s" }}>
                         {t.label}
                     </button>
                 ))}
             </div>
 
-            <div style={{ flex:1, padding:24, overflowY:"auto" }}>
+            <div style={{ flex: 1, padding: 24, overflowY: "auto", minHeight: 0 }}>
 
-                {/* ═══════════════════ OVERVIEW ═══════════════════ */}
+                {/* ══ OVERVIEW ══ */}
                 {activeTab === "overview" && (
                     <div>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
-                            <div style={{ fontSize:18, fontWeight:700 }}>Cost Overview</div>
-                            <DateFilter />
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                            <div style={{ fontSize: 18, fontWeight: 700 }}>Cost Overview</div><DateFilter />
                         </div>
-                        <div style={{ fontSize:13, color:"var(--text2)", marginBottom:24 }}>{cloud.name} · {dateRangeLabel[dateRange]}</div>
-
-                        {/* KPI row */}
-                        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:24 }}>
+                        <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 24 }}>{cloud.name} · {dateRangeLabel[dateRange]}</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 24 }}>
                             {[
-                                { label:"Month-to-Date",     value: costUnavailable ? "N/A" : fmt(total),                          color:cloud.color,       sub:`Daily burn: ${fmt(dailyBurn, 2)}/day` },
-                                { label:"Forecast",          value: costUnavailable ? "N/A" : forecast ? fmt(forecast) : "—",      color:"#10B981",         sub:`${daysLeft} days remaining` },
-                                { label:"Potential Savings", value: fmt(totalSavings + rightsizingSavings, 0) + "/mo",             color:"#F59E0B",         sub:`${recommendations.length} actions` },
-                                { label:"Services tracked",  value: Object.keys(byService).length || topServices.length,           color:"#8B5CF6",         sub:`${regions.length} region${regions.length!==1?"s":""}` },
+                                { label: "Month-to-Date", value: costUnavailable ? "N/A" : fmt(total), color: cloud.color, sub: `Daily burn: ${fmt(dailyBurn, 2)}/day` },
+                                { label: "Regression Forecast", value: costUnavailable ? "N/A" : regressionForecast ? fmt(regressionForecast) : forecast ? fmt(forecast) : "—", color: "#10B981", sub: regressionForecast ? `Linear regression (${monthlyHistory.length} months)` : `${daysLeft} days remaining` },
+                                { label: "Total Savings Avail.", value: fmt(totalSavings, 0) + "/mo", color: "#F59E0B", sub: `${recommendations.length} actions · ${fmt(realizedSavings, 0)} realized` },
+                                { label: "Maturity Score", value: `${(maturity.avg * 100).toFixed(0)}%`, color: maturity.phase === "Run" ? "var(--green)" : maturity.phase === "Walk" ? "var(--amber)" : "var(--text3)", sub: `${maturity.phase} phase · ${maturity.caps.filter(c => c.score === 3).length}/${maturity.caps.length} at Run` },
                             ].map(({ label, value, color, sub }) => (
-                                <div key={label} style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:20, borderTop:`3px solid ${color}` }}>
-                                    <div style={{ fontSize:11, fontWeight:600, color:"var(--text3)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:8 }}>{label}</div>
-                                    <div style={{ fontSize:26, fontWeight:700, color, letterSpacing:"-0.03em", marginBottom:4 }}>{value}</div>
-                                    <div style={{ fontSize:11, color:"var(--text3)" }}>{sub}</div>
+                                <div key={label} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, borderTop: `3px solid ${color}` }}>
+                                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>{label}</div>
+                                    <div style={{ fontSize: 26, fontWeight: 700, color, letterSpacing: "-0.03em", marginBottom: 4 }}>{value}</div>
+                                    <div style={{ fontSize: 11, color: "var(--text3)" }}>{sub}</div>
                                 </div>
                             ))}
                         </div>
 
-                        {/* Burn rate gauge */}
-                        {!costUnavailable && forecast && (
-                            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:20, marginBottom:24 }}>
-                                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+                        {!costUnavailable && (regressionForecast || forecast) && (
+                            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, marginBottom: 24 }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                                     <div>
-                                        <div style={{ fontSize:14, fontWeight:600, marginBottom:2 }}>Burn Rate vs Budget</div>
-                                        <div style={{ fontSize:12, color:"var(--text3)" }}>Day {dayOfMonth} of {daysInMonth} · {fmt(dailyBurn, 2)}/day</div>
+                                        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 2 }}>Burn Rate vs Forecast</div>
+                                        <div style={{ fontSize: 12, color: "var(--text3)" }}>Day {dayOfMonth} of {daysInMonth} · {fmt(dailyBurn, 2)}/day{regressionForecast ? " · regression-based forecast" : ""}</div>
                                     </div>
-                                    <div style={{ textAlign:"right" }}>
-                                        <div style={{ fontSize:13, fontWeight:600, color: projectedMonthEnd > forecast * 1.1 ? "var(--red)" : "var(--green)" }}>
-                                            {projectedMonthEnd > forecast * 1.1 ? "⚠️ On track to exceed" : "✓ On track"} · {fmt(projectedMonthEnd)} projected
+                                    <div style={{ textAlign: "right" }}>
+                                        <div style={{ fontSize: 13, fontWeight: 600, color: projectedMonthEnd > (regressionForecast || forecast) * 1.1 ? "var(--red)" : "var(--green)" }}>
+                                            {projectedMonthEnd > (regressionForecast || forecast) * 1.1 ? "⚠️ Exceeding forecast" : "✓ On track"} · {fmt(projectedMonthEnd)} projected
                                         </div>
-                                        <div style={{ fontSize:11, color:"var(--text3)" }}>Forecast: {fmt(forecast)}</div>
+                                        <div style={{ fontSize: 11, color: "var(--text3)" }}>Forecast: {fmt(regressionForecast || forecast)}</div>
                                     </div>
                                 </div>
-                                <div style={{ height:12, background:"var(--surface2)", borderRadius:6, overflow:"hidden", position:"relative" }}>
-                                    <div style={{ height:"100%", borderRadius:6, background: projectedMonthEnd > forecast * 1.1 ? "var(--red)" : cloud.color, width:`${Math.min(pct(total, forecast), 100)}%`, transition:"width 0.5s" }} />
-                                    {/* Forecast marker */}
-                                    <div style={{ position:"absolute", top:0, bottom:0, left:"100%", width:2, background:"var(--amber)", transform:"translateX(-50%)" }} />
+                                <div style={{ height: 12, background: "var(--surface2)", borderRadius: 6, overflow: "hidden" }}>
+                                    <div style={{ height: "100%", borderRadius: 6, background: projectedMonthEnd > (regressionForecast || forecast) * 1.1 ? "var(--red)" : cloud.color, width: `${Math.min(pct(total, regressionForecast || forecast), 100)}%`, transition: "width 0.5s" }} />
                                 </div>
-                                <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"var(--text3)", marginTop:6 }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text3)", marginTop: 6 }}>
                                     <span>$0</span>
-                                    <span style={{ color:cloud.color }}>{fmt(total)} spent ({pct(total, forecast)}%)</span>
-                                    <span>{fmt(forecast)}</span>
+                                    <span style={{ color: cloud.color }}>{fmt(total)} ({pct(total, regressionForecast || forecast)}%)</span>
+                                    <span>{fmt(regressionForecast || forecast)}</span>
                                 </div>
                             </div>
                         )}
 
-                        {/* Pie + inventory */}
-                        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:24 }}>
-                            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:20 }}>
-                                <div style={{ fontSize:14, fontWeight:600, marginBottom:16 }}>Spend by category</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+                            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 }}>
+                                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Spend by category</div>
                                 {categoryBreakdown.length > 0 ? (
                                     <>
                                         <ResponsiveContainer width="100%" height={180}>
@@ -3903,160 +4083,111 @@ const FinOpsSection = ({ awsData, selectedCloud, accountId: propAccountId }) => 
                                                 <Pie data={categoryBreakdown} cx="50%" cy="50%" innerRadius={48} outerRadius={78} dataKey="value" paddingAngle={2}>
                                                     {categoryBreakdown.map((c, i) => <Cell key={i} fill={c.color} />)}
                                                 </Pie>
-                                                <Tooltip formatter={v => [fmt(v), "Cost"]} contentStyle={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:8, fontSize:12 }} />
+                                                <Tooltip formatter={v => [fmt(v), "Cost"]} contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} />
                                             </PieChart>
                                         </ResponsiveContainer>
-                                        <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginTop:4 }}>
+                                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
                                             {categoryBreakdown.map(c => (
-                                                <div key={c.name} style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:"var(--text2)" }}>
-                                                    <span style={{ width:8, height:8, borderRadius:2, background:c.color, display:"inline-block" }} />
-                                                    {c.name} <strong style={{ color:"var(--text)", marginLeft:2 }}>{fmt(c.value, 0)}</strong>
+                                                <div key={c.name} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--text2)" }}>
+                                                    <span style={{ width: 8, height: 8, borderRadius: 2, background: c.color, display: "inline-block" }} />
+                                                    {c.name} <strong style={{ color: "var(--text)", marginLeft: 2 }}>{fmt(c.value, 0)}</strong>
                                                 </div>
                                             ))}
                                         </div>
                                     </>
                                 ) : (
-                                    <div style={{ textAlign:"center", padding:"32px 0", color:"var(--text3)", fontSize:13 }}>
-                                        {costUnavailable ? "Enable cost access to see breakdown" : "No cost data available"}
-                                    </div>
+                                    <div style={{ textAlign: "center", padding: "32px 0", color: "var(--text3)", fontSize: 13 }}>{costUnavailable ? "Enable cost access to see breakdown" : "No cost data"}</div>
                                 )}
                             </div>
-
-                            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:20 }}>
-                                <div style={{ fontSize:14, fontWeight:600, marginBottom:16 }}>Resource inventory</div>
+                            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 }}>
+                                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Resource inventory</div>
                                 {[
-                                    { label: isAzure ? "Virtual Machines" : "EC2 Instances",    value:ec2Count,    icon:"🖥", color:"#378ADD" },
-                                    { label: isAzure ? "SQL Databases"    : "RDS Instances",    value:rdsCount,    icon:"🗄", color:"#1D9E75" },
-                                    { label: isAzure ? "Azure Functions"  : "Lambda Functions", value:lambdaCount, icon:"⚡", color:"#BA7517" },
-                                    { label: isAzure ? "Storage Accounts" : "S3 Buckets",       value:s3Count,     icon:"🗂", color:"#8B5CF6" },
-                                    { label: isAzure ? "AKS Clusters"     : "EKS Clusters",     value:eksCount,    icon:"🐳", color:"#0F6E56" },
-                                    { label: "Regions scanned",                                  value:regions.length, icon:"🌐", color:"#5F5E5A" },
+                                    { label: isAzure ? "Virtual Machines" : "EC2 Instances", value: ec2Count, icon: "🖥", color: "#378ADD" },
+                                    { label: isAzure ? "SQL Databases" : "RDS Instances", value: rdsCount, icon: "🗄", color: "#1D9E75" },
+                                    { label: isAzure ? "Azure Functions" : "Lambda Functions", value: lambdaCount, icon: "⚡", color: "#BA7517" },
+                                    { label: isAzure ? "Storage Accounts" : "S3 Buckets", value: s3Count, icon: "🗂", color: "#8B5CF6" },
+                                    { label: isAzure ? "AKS Clusters" : "EKS Clusters", value: eksCount, icon: "🐳", color: "#0F6E56" },
+                                    { label: "Carbon footprint", value: `${fmtN(carbonData.totalCO2eTonnes, 2)} tCO2e/mo`, icon: "🌱", color: "#22c55e" },
                                 ].map(({ label, value, icon, color }) => (
-                                    <div key={label} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", background:"var(--surface2)", borderRadius:8, marginBottom:6 }}>
-                                        <span style={{ fontSize:16 }}>{icon}</span>
-                                        <span style={{ flex:1, fontSize:13, color:"var(--text2)" }}>{label}</span>
-                                        <span style={{ fontSize:18, fontWeight:700, color }}>{value}</span>
+                                    <div key={label} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "var(--surface2)", borderRadius: 8, marginBottom: 6 }}>
+                                        <span style={{ fontSize: 16 }}>{icon}</span>
+                                        <span style={{ flex: 1, fontSize: 13, color: "var(--text2)" }}>{label}</span>
+                                        <span style={{ fontSize: 16, fontWeight: 700, color }}>{value}</span>
                                     </div>
                                 ))}
                             </div>
                         </div>
 
-                        {/* Region × service heatmap */}
-                        {heatmapRegions.length > 0 && heatmapServices.length > 0 && (
-                            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:20, marginBottom:24 }}>
-                                <div style={{ fontSize:14, fontWeight:600, marginBottom:4 }}>Region × Service cost heatmap</div>
-                                <div style={{ fontSize:12, color:"var(--text3)", marginBottom:16 }}>Darker = higher estimated cost share</div>
-                                <div style={{ overflowX:"auto" }}>
-                                    <table style={{ borderCollapse:"collapse", fontSize:11, minWidth:"100%" }}>
-                                        <thead>
-                                        <tr>
-                                            <th style={{ padding:"6px 10px", textAlign:"left", color:"var(--text3)", fontWeight:600 }}>Region</th>
-                                            {heatmapServices.map(s => (
-                                                <th key={s} style={{ padding:"6px 8px", textAlign:"center", color:"var(--text3)", fontWeight:600, maxWidth:90, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }} title={s}>{s.split(" ").slice(-1)[0]}</th>
-                                            ))}
-                                        </tr>
-                                        </thead>
-                                        <tbody>
-                                        {heatmapRegions.map(region => (
-                                            <tr key={region}>
-                                                <td style={{ padding:"6px 10px", fontFamily:"monospace", fontSize:11, color:"var(--text2)", whiteSpace:"nowrap" }}>{region}</td>
-                                                {heatmapServices.map(service => {
-                                                    const val = heatCell(region, service);
-                                                    const intensity = Math.min(val / (heatmapMax || 1), 1);
-                                                    const bg = `rgba(${isAzure ? "0,137,214" : "59,91,219"},${(intensity * 0.75 + 0.05).toFixed(2)})`;
-                                                    return (
-                                                        <td key={service} title={`${region} · ${service}: ~${fmt(val, 2)}`} style={{ padding:"6px 8px", textAlign:"center", background:bg, borderRadius:4, cursor:"default" }}>
-                                                            <span style={{ fontSize:10, color: intensity > 0.5 ? "white" : "var(--text3)" }}>{fmtK(val)}</span>
-                                                        </td>
-                                                    );
-                                                })}
-                                            </tr>
-                                        ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Top services bar list */}
-                        <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:20 }}>
-                            <div style={{ fontSize:14, fontWeight:600, marginBottom:16 }}>Top spending services</div>
-                            {topServices.length > 0 ? topServices.slice(0, 6).map(({ name, val }) => (
-                                <div key={name} style={{ marginBottom:10 }}>
-                                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:13, marginBottom:3, color:"var(--text2)" }}>
-                                        <span>{name}</span>
-                                        <span style={{ fontWeight:600, color:"var(--text)" }}>{fmt(val, 4)}</span>
+                        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 }}>
+                            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Top spending services</div>
+                            {topServices.slice(0, 6).map(({ name, val }) => {
+                                const hist = serviceHistory[name] || [];
+                                const z = zScore(val, hist.slice(0, -1));
+                                return (
+                                    <div key={name} style={{ marginBottom: 10 }}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 3, color: "var(--text2)" }}>
+                                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                                <span>{name}</span>
+                                                {Math.abs(z) > 2 && <span style={{ fontSize: 10, fontWeight: 700, color: z > 0 ? "var(--red)" : "var(--amber)" }}>{z > 0 ? "↑" : "↓"}{Math.abs(z).toFixed(1)}σ</span>}
+                                            </div>
+                                            <span style={{ fontWeight: 600, color: "var(--text)" }}>{fmt(val, 4)}</span>
+                                        </div>
+                                        <div style={{ height: 5, background: "var(--surface2)", borderRadius: 3, overflow: "hidden" }}>
+                                            <div style={{ height: "100%", background: Math.abs(z) > 2 ? `var(--${z > 0 ? "red" : "amber"})` : cloud.color, borderRadius: 3, width: `${(val / maxCost * 100).toFixed(1)}%`, opacity: 0.75 }} />
+                                        </div>
                                     </div>
-                                    <div style={{ height:5, background:"var(--surface2)", borderRadius:3, overflow:"hidden" }}>
-                                        <div style={{ height:"100%", background:cloud.color, borderRadius:3, width:`${(val/maxCost*100).toFixed(1)}%`, opacity:0.75 }} />
-                                    </div>
-                                </div>
-                            )) : (
-                                <div style={{ textAlign:"center", padding:"24px 0", color:"var(--text3)", fontSize:13 }}>Enable Cost Explorer / Cost Management to see service breakdown</div>
-                            )}
+                                );
+                            })}
                         </div>
                     </div>
                 )}
 
-                {/* ═══════════════════ SERVICES ═══════════════════ */}
+                {/* ══ SERVICES ══ */}
                 {activeTab === "services" && (
                     <div>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
-                            <div style={{ fontSize:18, fontWeight:700 }}>Cost by service</div>
-                            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                                <DateFilter />
-                                {topServices.length > 0 && (
-                                    <button onClick={exportCSV} style={{ padding:"6px 14px", fontSize:12, fontWeight:600, borderRadius:8, cursor:"pointer", background:cloud.color, color:"white", border:"none" }}>⬇ CSV</button>
-                                )}
-                            </div>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                            <div style={{ fontSize: 18, fontWeight: 700 }}>Cost by service</div>
+                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}><DateFilter />{topServices.length > 0 && <button onClick={exportCSV} style={{ padding: "6px 14px", fontSize: 12, fontWeight: 600, borderRadius: 8, cursor: "pointer", background: cloud.color, color: "white", border: "none" }}>⬇ CSV</button>}</div>
                         </div>
-                        <div style={{ fontSize:13, color:"var(--text2)", marginBottom:24 }}>{cloud.serviceLabel} · {dateRangeLabel[dateRange]} · Click headers to sort</div>
-
+                        <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 24 }}>{cloud.serviceLabel} · {dateRangeLabel[dateRange]} · σ = Z-score deviation from baseline</div>
                         {topServices.length > 0 ? (
-                            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, overflow:"hidden" }}>
-                                <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                                    <thead>
-                                    <tr style={{ background:"var(--surface2)" }}>
-                                        {[{k:null,l:"#"},{k:"name",l:"Service"},{k:"cost",l:"Cost (MTD)"},{k:"pct",l:"% of total"},{k:null,l:"7-day trend"},{k:null,l:"Status"}].map(({ k, l }) => (
-                                            <th key={l} onClick={k ? () => handleSort(k) : undefined} style={{ padding:"12px 14px", textAlign:"left", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.05em", borderBottom:"1px solid var(--border)", cursor:k?"pointer":"default", color:(k && sortCol===k) ? cloud.color : "var(--text3)" }}>
+                            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+                                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                                    <thead><tr style={{ background: "var(--surface2)" }}>
+                                        {[{ k: null, l: "#" }, { k: "name", l: "Service" }, { k: "cost", l: "Cost (MTD)" }, { k: "pct", l: "% of total" }, { k: null, l: "Z-Score" }, { k: null, l: "Trend" }, { k: null, l: "Status" }].map(({ k, l }) => (
+                                            <th key={l} onClick={k ? () => handleSort(k) : undefined} style={{ padding: "12px 14px", textAlign: "left", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid var(--border)", cursor: k ? "pointer" : "default", color: (k && sortCol === k) ? cloud.color : "var(--text3)" }}>
                                                 {l}{k ? sortArrow(k) : ""}
                                             </th>
                                         ))}
-                                    </tr>
-                                    </thead>
+                                    </tr></thead>
                                     <tbody>
                                     {topServices.map(({ name, val }, i) => {
-                                        // Sparkline: seed-stable 7 points
-                                        const spark = Array.from({length:7}, (_, j) => {
-                                            const s = (i*7+j*3+5) % 10;
-                                            return val * (0.6 + s * 0.08);
-                                        });
-                                        const sparkMax = Math.max(...spark);
-                                        const sparkMin = Math.min(...spark);
-                                        const sparkPts = spark.map((v, j) => `${j * 12},${20 - ((v - sparkMin) / (sparkMax - sparkMin || 1)) * 16}`).join(" ");
+                                        const hist = serviceHistory[name] || [];
+                                        const z = zScore(val, hist.slice(0, -1));
+                                        const spark = hist.length > 1 ? hist : Array.from({ length: 7 }, (_, j) => { const s = (i * 7 + j * 3 + 5) % 10; return val * (0.6 + s * 0.08); });
+                                        const sMax = Math.max(...spark), sMin = Math.min(...spark);
+                                        const pts = spark.map((v, j) => `${j * (72 / (spark.length - 1 || 1))},${20 - ((v - sMin) / (sMax - sMin || 1)) * 16}`).join(" ");
+                                        const anomaly = Math.abs(z) > 2;
                                         return (
-                                            <tr key={name} style={{ borderBottom:"1px solid var(--border)" }}>
-                                                <td style={{ padding:"12px 14px", fontSize:12, color:"var(--text3)", fontWeight:600 }}>#{i+1}</td>
-                                                <td style={{ padding:"12px 14px", fontSize:13, fontWeight:500, color:"var(--text)" }}>{name}</td>
-                                                <td style={{ padding:"12px 14px", fontSize:13, fontWeight:700, color:cloud.color }}>{fmt(val, 4)}</td>
-                                                <td style={{ padding:"12px 14px" }}>
-                                                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                                                        <div style={{ height:5, width:70, background:"var(--surface2)", borderRadius:3, overflow:"hidden" }}>
-                                                            <div style={{ height:"100%", background:cloud.color, borderRadius:3, width:`${total>0?(val/total*100).toFixed(1):0}%`, opacity:0.7 }} />
-                                                        </div>
-                                                        <span style={{ fontSize:11, color:"var(--text2)" }}>{pct(val, total)}%</span>
+                                            <tr key={name} style={{ borderBottom: "1px solid var(--border)", background: anomaly ? `${z > 0 ? "var(--red-bg)" : "var(--amber-bg)"}` : undefined }}>
+                                                <td style={{ padding: "12px 14px", fontSize: 12, color: "var(--text3)", fontWeight: 600 }}>#{i + 1}</td>
+                                                <td style={{ padding: "12px 14px", fontSize: 13, fontWeight: 500 }}>{name}</td>
+                                                <td style={{ padding: "12px 14px", fontSize: 13, fontWeight: 700, color: cloud.color }}>{fmt(val, 4)}</td>
+                                                <td style={{ padding: "12px 14px" }}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                                        <div style={{ height: 5, width: 70, background: "var(--surface2)", borderRadius: 3, overflow: "hidden" }}><div style={{ height: "100%", background: cloud.color, borderRadius: 3, width: `${total > 0 ? (val / total * 100).toFixed(1) : 0}%`, opacity: 0.7 }} /></div>
+                                                        <span style={{ fontSize: 11, color: "var(--text2)" }}>{pct(val, total)}%</span>
                                                     </div>
                                                 </td>
-                                                <td style={{ padding:"12px 14px" }}>
-                                                    <svg width="72" height="22" viewBox="0 0 72 22" style={{ display:"block" }}>
-                                                        <polyline points={sparkPts} fill="none" stroke={cloud.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                                    </svg>
-                                                </td>
-                                                <td style={{ padding:"12px 14px" }}>
-                                                        <span style={{ fontSize:11, fontWeight:600, color: i < 3 ? "var(--red)" : "var(--green)" }}>
-                                                            {i < 3 ? "↑ Top spender" : "✓ Normal"}
+                                                <td style={{ padding: "12px 14px" }}>
+                                                        <span style={{ fontSize: 12, fontWeight: 700, color: Math.abs(z) > 3 ? "var(--red)" : Math.abs(z) > 2 ? "var(--amber)" : "var(--text3)" }}>
+                                                            {z > 0 ? "+" : ""}{z.toFixed(2)}σ {Math.abs(z) > 2 ? "⚠️" : ""}
                                                         </span>
                                                 </td>
+                                                <td style={{ padding: "12px 14px" }}>
+                                                    <svg width="72" height="22" viewBox="0 0 72 22"><polyline points={pts} fill="none" stroke={anomaly ? "var(--red)" : cloud.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                                </td>
+                                                <td style={{ padding: "12px 14px" }}><span style={{ fontSize: 11, fontWeight: 600, color: anomaly ? "var(--red)" : i < 3 ? "var(--amber)" : "var(--green)" }}>{anomaly ? "⚠️ Anomaly" : i < 3 ? "↑ Top spender" : "✓ Normal"}</span></td>
                                             </tr>
                                         );
                                     })}
@@ -4064,118 +4195,128 @@ const FinOpsSection = ({ awsData, selectedCloud, accountId: propAccountId }) => 
                                 </table>
                             </div>
                         ) : (
-                            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:48, textAlign:"center" }}>
-                                <div style={{ fontSize:36, marginBottom:12 }}>💰</div>
-                                <div style={{ fontSize:15, fontWeight:600, marginBottom:8 }}>No cost data</div>
-                                <div style={{ fontSize:13, color:"var(--text2)" }}>
-                                    {isAzure ? "Assign the Cost Management Reader role to your Service Principal." : "Enable AWS Cost Explorer and grant ce:GetCostAndUsage."}
-                                </div>
+                            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 48, textAlign: "center" }}>
+                                <div style={{ fontSize: 36, marginBottom: 12 }}>💰</div>
+                                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>No cost data</div>
+                                <div style={{ fontSize: 13, color: "var(--text2)" }}>{isAzure ? "Assign the Cost Management Reader role." : "Enable AWS Cost Explorer."}</div>
                             </div>
                         )}
                     </div>
                 )}
 
-                {/* ═══════════════════ TRENDS ═══════════════════ */}
+                {/* ══ TRENDS ══ */}
                 {activeTab === "trends" && (
                     <div>
-                        <div style={{ fontSize:18, fontWeight:700, marginBottom:4 }}>Cost trends</div>
-                        <div style={{ fontSize:13, color:"var(--text2)", marginBottom:24 }}>Month-over-month spend + waterfall delta</div>
-
-                        {/* Bar chart */}
-                        <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:24, marginBottom:20 }}>
-                            <div style={{ fontSize:14, fontWeight:600, marginBottom:20 }}>Monthly spend (last 6 months)</div>
+                        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Cost trends</div>
+                        <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 4 }}>
+                            {monthlyHistory.length >= 3 ? `Linear regression on ${monthlyHistory.length} months of real data` : "Limited history — connect billing history for regression forecast"}
+                        </div>
+                        {monthlyHistory.length < 3 && (
+                            <div style={{ background: "var(--amber-bg)", border: "1px solid var(--amber)", borderRadius: 8, padding: "10px 14px", marginBottom: 20, fontSize: 13, color: "var(--amber)" }}>
+                                ⚠️ Backend is returning {monthlyHistory.length} month(s) of history. For linear regression forecasting, the backend needs to return <code>costs.monthly_history</code> as an array of 6 monthly totals.
+                            </div>
+                        )}
+                        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 24, marginBottom: 20 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                                <div style={{ fontSize: 14, fontWeight: 600 }}>Monthly spend (last 6 months)</div>
+                                {regressionForecast && <div style={{ fontSize: 12, color: "var(--green)", fontWeight: 600 }}>📈 Next month regression forecast: {fmt(regressionForecast)}</div>}
+                            </div>
                             <ResponsiveContainer width="100%" height={220}>
-                                <BarChart data={monthTrend} margin={{ top:20, right:10, left:0, bottom:0 }}>
-                                    <XAxis dataKey="month" tick={{ fontSize:12, fill:"var(--text3)" }} axisLine={false} tickLine={false} />
-                                    <YAxis tick={{ fontSize:11, fill:"var(--text3)" }} axisLine={false} tickLine={false} tickFormatter={v => `$${Number(v).toFixed(0)}`} />
-                                    <Tooltip formatter={v => [fmt(v), "Cost"]} contentStyle={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:8, fontSize:12 }} />
-                                    <Bar dataKey="cost" radius={[4,4,0,0]}>
-                                        {monthTrend.map((e, i) => <Cell key={i} fill={e.isCurrent ? cloud.color : `${cloud.color}50`} />)}
+                                <BarChart data={monthTrend} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
+                                    <XAxis dataKey="month" tick={{ fontSize: 12, fill: "var(--text3)" }} axisLine={false} tickLine={false} />
+                                    <YAxis tick={{ fontSize: 11, fill: "var(--text3)" }} axisLine={false} tickLine={false} tickFormatter={v => `$${Number(v).toFixed(0)}`} />
+                                    <Tooltip formatter={(v, n, p) => [fmt(v), (p.payload.isReal ? "Real spend" : "Estimated")]} contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} />
+                                    <Bar dataKey="cost" radius={[4, 4, 0, 0]}>
+                                        {monthTrend.map((e, i) => <Cell key={i} fill={e.isCurrent ? cloud.color : e.isReal ? `${cloud.color}80` : `${cloud.color}30`} />)}
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
+                            <div style={{ display: "flex", gap: 16, fontSize: 11, color: "var(--text3)", marginTop: 8 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 12, height: 8, borderRadius: 2, background: cloud.color }} /> Current month</div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 12, height: 8, borderRadius: 2, background: `${cloud.color}80` }} /> Real historical</div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 12, height: 8, borderRadius: 2, background: `${cloud.color}30` }} /> Estimated (no history)</div>
+                            </div>
                         </div>
-
-                        {/* Waterfall MoM deltas */}
-                        <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:24, marginBottom:20 }}>
-                            <div style={{ fontSize:14, fontWeight:600, marginBottom:4 }}>Month-over-month delta</div>
-                            <div style={{ fontSize:12, color:"var(--text3)", marginBottom:16 }}>Green = cost decrease, red = cost increase</div>
-                            <div style={{ display:"flex", gap:8, alignItems:"flex-end", height:120 }}>
+                        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 24, marginBottom: 20 }}>
+                            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Month-over-month delta</div>
+                            <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 16 }}>Green = cost decrease · Red = cost increase</div>
+                            <div style={{ display: "flex", gap: 8, alignItems: "flex-end", height: 120 }}>
                                 {waterfallData.map((w, i) => {
-                                    const maxDelta = Math.max(...waterfallData.map(d => Math.abs(d.delta)), 1);
-                                    const barH = Math.abs(w.delta) / maxDelta * 80;
+                                    const maxD = Math.max(...waterfallData.map(d => Math.abs(d.delta)), 1), barH = Math.abs(w.delta) / maxD * 80;
                                     return (
-                                        <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
-                                            <span style={{ fontSize:10, fontWeight:600, color: w.positive ? "var(--red)" : "var(--green)" }}>
-                                                {w.positive ? "+" : "-"}{fmt(Math.abs(w.delta), 0)}
-                                            </span>
-                                            <div style={{ width:"100%", height:`${barH}px`, minHeight:4, background: w.positive ? "var(--red-bg)" : "var(--green-bg)", border:`1px solid ${w.positive ? "var(--red)" : "var(--green)"}`, borderRadius:4 }} />
-                                            <span style={{ fontSize:10, color:"var(--text3)" }}>{w.month}</span>
+                                        <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                                            <span style={{ fontSize: 10, fontWeight: 600, color: w.positive ? "var(--red)" : "var(--green)" }}>{w.positive ? "+" : "-"}{fmt(Math.abs(w.delta), 0)}</span>
+                                            <div style={{ width: "100%", height: `${barH}px`, minHeight: 4, background: w.positive ? "var(--red-bg)" : "var(--green-bg)", border: `1px solid ${w.positive ? "var(--red)" : "var(--green)"}`, borderRadius: 4 }} />
+                                            <span style={{ fontSize: 10, color: "var(--text3)" }}>{w.month}</span>
                                         </div>
                                     );
                                 })}
                             </div>
                         </div>
-
-                        {/* Summary tiles */}
-                        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16 }}>
                             {[
-                                { label:"Current month",    value: costUnavailable ? "N/A" : fmt(total),                                                  color:cloud.color,   icon:"📅" },
-                                { label:"Projected total",  value: forecast ? fmt(forecast) : "—",                                                        color:"#10B981",     icon:"🔮" },
-                                { label:"6-month average",  value: fmt(monthTrend.reduce((s,m)=>s+m.cost,0)/6, 2),                                         color:"#8B5CF6",     icon:"📊" },
-                                { label:"MoM change",       value: prevMonthCost>0 ? `${momUp?"+":""}${momChange.toFixed(1)}%` : "—",                      color: momUp ? "var(--red)" : "var(--green)", icon: momUp ? "📈" : "📉" },
+                                { label: "Current month", value: fmt(total), color: cloud.color, icon: "📅" },
+                                { label: "Regression forecast", value: regressionForecast ? fmt(regressionForecast) : forecast ? fmt(forecast) : "—", color: "#10B981", icon: "📈" },
+                                { label: "6-month average", value: fmt(monthTrend.reduce((s, m) => s + m.cost, 0) / 6, 2), color: "#8B5CF6", icon: "📊" },
+                                { label: "MoM change", value: prevMonthCost > 0 ? `${momUp ? "+" : ""}${momChange.toFixed(1)}%` : "—", color: momUp ? "var(--red)" : "var(--green)", icon: momUp ? "📈" : "📉" },
                             ].map(({ label, value, color, icon }) => (
-                                <div key={label} style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:20, textAlign:"center" }}>
-                                    <div style={{ fontSize:24, marginBottom:8 }}>{icon}</div>
-                                    <div style={{ fontSize:22, fontWeight:700, color, marginBottom:4 }}>{value}</div>
-                                    <div style={{ fontSize:12, color:"var(--text3)" }}>{label}</div>
+                                <div key={label} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, textAlign: "center" }}>
+                                    <div style={{ fontSize: 24, marginBottom: 8 }}>{icon}</div>
+                                    <div style={{ fontSize: 22, fontWeight: 700, color, marginBottom: 4 }}>{value}</div>
+                                    <div style={{ fontSize: 12, color: "var(--text3)" }}>{label}</div>
                                 </div>
                             ))}
                         </div>
                     </div>
                 )}
 
-                {/* ═══════════════════ ANOMALIES ═══════════════════ */}
+                {/* ══ ANOMALIES ══ */}
                 {activeTab === "anomalies" && (
                     <div>
-                        <div style={{ fontSize:18, fontWeight:700, marginBottom:4 }}>Anomaly detection</div>
-                        <div style={{ fontSize:13, color:"var(--text2)", marginBottom:24 }}>Services and spend patterns that deviate significantly from baseline</div>
-
+                        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Anomaly detection</div>
+                        <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 16 }}>Statistical Z-score analysis — flags spend more than 2 standard deviations from 6-month per-service baseline</div>
+                        {monthlyHistory.length < 3 && (
+                            <div style={{ background: "var(--amber-bg)", border: "1px solid var(--amber)", borderRadius: 8, padding: "10px 14px", marginBottom: 20, fontSize: 13, color: "var(--amber)" }}>
+                                ⚠️ Only {monthlyHistory.length} month(s) of history. Z-score analysis improves with more data. Provide <code>costs.monthly_history</code> from the backend for accurate baselines.
+                            </div>
+                        )}
                         {anomalies.length === 0 ? (
-                            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:48, textAlign:"center" }}>
-                                <div style={{ fontSize:36, marginBottom:12 }}>✅</div>
-                                <div style={{ fontSize:15, fontWeight:600, marginBottom:8 }}>No anomalies detected</div>
-                                <div style={{ fontSize:13, color:"var(--text2)" }}>All service costs are within expected ranges</div>
+                            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 48, textAlign: "center" }}>
+                                <div style={{ fontSize: 36, marginBottom: 12 }}>✅</div>
+                                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>No statistical anomalies</div>
+                                <div style={{ fontSize: 13, color: "var(--text2)" }}>All service costs are within 2σ of their historical baselines</div>
                             </div>
                         ) : (
                             <>
-                                <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:24 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 24 }}>
                                     {[
-                                        { label:"Anomalies found",  value:anomalies.length,                                            color:"var(--red)" },
-                                        { label:"Critical / High",  value:anomalies.filter(a=>["critical","high"].includes(a.severity)).length, color:"var(--red)" },
-                                        { label:"Affected spend",   value:fmt(anomalies.reduce((s,a)=>s+a.cost,0)),                    color:"var(--amber)" },
+                                        { label: "Anomalies (>2σ)", value: anomalies.length, color: "var(--red)" },
+                                        { label: "Critical / High", value: anomalies.filter(a => ["critical", "high"].includes(a.severity)).length, color: "var(--red)" },
+                                        { label: "Excess spend", value: fmt(anomalies.reduce((s, a) => s + Math.max(0, a.cost - (a.expectedHigh || 0)), 0)), color: "var(--amber)" },
                                     ].map(({ label, value, color }) => (
-                                        <div key={label} style={{ background:"var(--surface)", border:`1px solid var(--border)`, borderRadius:12, padding:16, borderLeft:`4px solid ${color}` }}>
-                                            <div style={{ fontSize:11, fontWeight:600, color:"var(--text3)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>{label}</div>
-                                            <div style={{ fontSize:24, fontWeight:700, color }}>{value}</div>
+                                        <div key={label} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, borderLeft: `4px solid ${color}` }}>
+                                            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{label}</div>
+                                            <div style={{ fontSize: 24, fontWeight: 700, color }}>{value}</div>
                                         </div>
                                     ))}
                                 </div>
-                                <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                                     {anomalies.map((a, i) => (
-                                        <div key={i} style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:20, borderLeft:`4px solid ${a.severity==="critical"||a.severity==="high" ? "var(--red)" : "var(--amber)"}` }}>
-                                            <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:12 }}>
-                                                <div style={{ flex:1 }}>
-                                                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
-                                                        <span style={{ fontSize:14, fontWeight:600 }}>{a.service}</span>
+                                        <div key={i} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, borderLeft: `4px solid ${a.severity === "critical" || a.severity === "high" ? "var(--red)" : "var(--amber)"}` }}>
+                                            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                                                        <span style={{ fontSize: 14, fontWeight: 600 }}>{a.service}</span>
                                                         <SevBadge sev={a.severity} />
-                                                        <span style={{ fontSize:11, color:"var(--text3)" }}>{a.ratio.toFixed(1)}× baseline</span>
+                                                        <span style={{ fontSize: 11, color: "var(--text3)", fontFamily: "monospace" }}>z={a.z.toFixed(2)}σ</span>
                                                     </div>
-                                                    <div style={{ fontSize:13, color:"var(--text2)", lineHeight:1.6 }}>{a.suggestion}</div>
+                                                    <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.6, marginBottom: 8 }}>{a.suggestion}</div>
+                                                    {a.expectedLow !== undefined && <div style={{ fontSize: 11, color: "var(--text3)" }}>Expected range: {fmt(a.expectedLow, 0)} – {fmt(a.expectedHigh, 0)}</div>}
                                                 </div>
-                                                <div style={{ textAlign:"right", flexShrink:0 }}>
-                                                    <div style={{ fontSize:20, fontWeight:700, color:"var(--red)" }}>{fmt(a.cost)}</div>
-                                                    <div style={{ fontSize:11, color:"var(--text3)" }}>this period</div>
+                                                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                                                    <div style={{ fontSize: 20, fontWeight: 700, color: "var(--red)" }}>{fmt(a.cost)}</div>
+                                                    <div style={{ fontSize: 11, color: "var(--text3)" }}>this period</div>
+                                                    {a.expectedHigh > 0 && <div style={{ fontSize: 11, color: "var(--amber)", marginTop: 2 }}>+{fmt(Math.max(0, a.cost - a.expectedHigh), 0)} above range</div>}
                                                 </div>
                                             </div>
                                         </div>
@@ -4186,51 +4327,50 @@ const FinOpsSection = ({ awsData, selectedCloud, accountId: propAccountId }) => 
                     </div>
                 )}
 
-                {/* ═══════════════════ RIGHTSIZING ═══════════════════ */}
+                {/* ══ RIGHTSIZING ══ */}
                 {activeTab === "rightsizing" && (
                     <div>
-                        <div style={{ fontSize:18, fontWeight:700, marginBottom:4 }}>Rightsizing opportunities</div>
-                        <div style={{ fontSize:13, color:"var(--text2)", marginBottom:24 }}>Stopped, idle, and oversized resources across your infrastructure</div>
-
-                        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:24 }}>
+                        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Rightsizing opportunities</div>
+                        <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 24 }}>
+                            Savings calculated using actual on-demand pricing where instance type is known <PricingBadge type="exact" /> vs estimates <PricingBadge type="estimate" />
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 24 }}>
                             {[
-                                { label:"Candidates found",   value:rightsizingCandidates.length, color:"var(--amber)" },
-                                { label:"Est. monthly savings", value:fmt(rightsizingSavings, 0),  color:"var(--green)" },
-                                { label:"High priority",      value:rightsizingCandidates.filter(r=>r.severity==="high").length, color:"var(--red)" },
+                                { label: "Candidates found", value: rightsizingCandidates.length, color: "var(--amber)" },
+                                { label: "Est. monthly savings", value: fmt(rightsizingSavings, 0), color: "var(--green)" },
+                                { label: "Exact pricing", value: rightsizingCandidates.filter(r => r.pricing === "exact").length, color: "#10B981" },
                             ].map(({ label, value, color }) => (
-                                <div key={label} style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:16, borderLeft:`4px solid ${color}` }}>
-                                    <div style={{ fontSize:11, fontWeight:600, color:"var(--text3)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>{label}</div>
-                                    <div style={{ fontSize:24, fontWeight:700, color }}>{value}</div>
+                                <div key={label} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, borderLeft: `4px solid ${color}` }}>
+                                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{label}</div>
+                                    <div style={{ fontSize: 24, fontWeight: 700, color }}>{value}</div>
                                 </div>
                             ))}
                         </div>
-
                         {rightsizingCandidates.length === 0 ? (
-                            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:48, textAlign:"center" }}>
-                                <div style={{ fontSize:36, marginBottom:12 }}>✅</div>
-                                <div style={{ fontSize:15, fontWeight:600, marginBottom:8 }}>No rightsizing candidates found</div>
-                                <div style={{ fontSize:13, color:"var(--text2)" }}>All resources appear appropriately sized based on available metadata</div>
+                            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 48, textAlign: "center" }}>
+                                <div style={{ fontSize: 36, marginBottom: 12 }}>✅</div>
+                                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>No rightsizing candidates</div>
+                                <div style={{ fontSize: 13, color: "var(--text2)" }}>All resources appear appropriately configured</div>
                             </div>
                         ) : (
-                            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, overflow:"hidden" }}>
-                                <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                                    <thead>
-                                    <tr style={{ background:"var(--surface2)" }}>
-                                        {["Resource","Type","Region","Issue","Recommended action","Est. saving","Priority"].map(h => (
-                                            <th key={h} style={{ padding:"10px 14px", textAlign:"left", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.05em", borderBottom:"1px solid var(--border)", color:"var(--text3)", whiteSpace:"nowrap" }}>{h}</th>
+                            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+                                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                                    <thead><tr style={{ background: "var(--surface2)" }}>
+                                        {["Resource", "Type", "Region", "Issue", "Action", "Saving/mo", "Pricing", "Priority"].map(h => (
+                                            <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid var(--border)", color: "var(--text3)", whiteSpace: "nowrap" }}>{h}</th>
                                         ))}
-                                    </tr>
-                                    </thead>
+                                    </tr></thead>
                                     <tbody>
                                     {rightsizingCandidates.map((r, i) => (
-                                        <tr key={i} style={{ borderBottom:"1px solid var(--border)" }}>
-                                            <td style={{ padding:"10px 14px", fontSize:12, fontWeight:500 }}>{r.resource}</td>
-                                            <td style={{ padding:"10px 14px", fontSize:11, fontFamily:"monospace", color:"var(--text2)" }}>{r.type}</td>
-                                            <td style={{ padding:"10px 14px", fontSize:11, color:"var(--text3)" }}>{r.region}</td>
-                                            <td style={{ padding:"10px 14px", fontSize:12, color:"var(--text2)" }}>{r.issue}</td>
-                                            <td style={{ padding:"10px 14px", fontSize:12, color:"var(--text2)" }}>{r.action}</td>
-                                            <td style={{ padding:"10px 14px", fontSize:13, fontWeight:700, color:"var(--green)" }}>{fmt(r.saving, 0)}/mo</td>
-                                            <td style={{ padding:"10px 14px" }}><SevBadge sev={r.severity} /></td>
+                                        <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
+                                            <td style={{ padding: "10px 14px", fontSize: 12, fontWeight: 500 }}>{r.resource}</td>
+                                            <td style={{ padding: "10px 14px", fontSize: 11, fontFamily: "monospace", color: "var(--text2)" }}>{r.type}</td>
+                                            <td style={{ padding: "10px 14px", fontSize: 11, color: "var(--text3)" }}>{r.region}</td>
+                                            <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text2)" }}>{r.issue}</td>
+                                            <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text2)" }}>{r.action}</td>
+                                            <td style={{ padding: "10px 14px", fontSize: 13, fontWeight: 700, color: "var(--green)" }}>{fmt(r.saving, 0)}</td>
+                                            <td style={{ padding: "10px 14px" }}><PricingBadge type={r.pricing} /></td>
+                                            <td style={{ padding: "10px 14px" }}><SevBadge sev={r.severity} /></td>
                                         </tr>
                                     ))}
                                     </tbody>
@@ -4240,163 +4380,160 @@ const FinOpsSection = ({ awsData, selectedCloud, accountId: propAccountId }) => 
                     </div>
                 )}
 
-                {/* ═══════════════════ ALLOCATION ═══════════════════ */}
+                {/* ══ ALLOCATION ══ */}
                 {activeTab === "allocation" && (
                     <div>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
-                            <div style={{ fontSize:18, fontWeight:700 }}>Cost allocation</div>
-                            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                                <span style={{ fontSize:12, color:"var(--text3)" }}>Tag key:</span>
-                                <select value={allocationTag} onChange={e => setAllocationTag(e.target.value)}
-                                        style={{ padding:"5px 10px", borderRadius:6, border:"1px solid var(--border)", background:"var(--surface2)", fontSize:12, color:"var(--text)", cursor:"pointer" }}>
-                                    {["environment","team","project","owner","costcenter"].map(k => <option key={k}>{k}</option>)}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                            <div style={{ fontSize: 18, fontWeight: 700 }}>Cost allocation</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ fontSize: 12, color: "var(--text3)" }}>Tag:</span>
+                                <select value={allocationTag} onChange={e => setAllocationTag(e.target.value)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--surface2)", fontSize: 12, color: "var(--text)", cursor: "pointer" }}>
+                                    {["environment", "team", "project", "owner", "costcenter"].map(k => <option key={k}>{k}</option>)}
+                                </select>
+                                <span style={{ fontSize: 12, color: "var(--text3)" }}>Shared cost:</span>
+                                <select value={allocationMode} onChange={e => setAllocationMode(e.target.value)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--surface2)", fontSize: 12, color: "var(--text)", cursor: "pointer" }}>
+                                    <option value="proportional">Proportional</option>
+                                    <option value="even">Even split</option>
+                                    <option value="fixed">Leave unallocated</option>
                                 </select>
                             </div>
                         </div>
-                        <div style={{ fontSize:13, color:"var(--text2)", marginBottom:24 }}>
-                            Cost attributed by <code>{allocationTag}</code> tag · {Number(untaggedPct) > 30 && <span style={{ color:"var(--amber)", fontWeight:600 }}>⚠️ {untaggedPct}% resources are untagged</span>}
+                        <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 8 }}>
+                            Tag: <code>{allocationTag}</code> · Shared cost split: <strong>{allocationMode}</strong>
+                            {Number(untaggedPct) > 30 && <span style={{ color: "var(--amber)", fontWeight: 600, marginLeft: 8 }}>⚠️ {untaggedPct}% untagged</span>}
                         </div>
-
+                        <div style={{ background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", marginBottom: 20, fontSize: 12, color: "var(--text3)", lineHeight: 1.6 }}>
+                            📊 <strong style={{ color: "var(--text)" }}>Showback mode</strong> — teams can see their attributed costs but are not billed. Shared (untagged) costs are split <strong>{allocationMode === "proportional" ? "proportionally by instance count" : allocationMode === "even" ? "evenly across all groups" : "left unallocated"}</strong>.
+                        </div>
+                        {Number(untaggedPct) > 30 && (
+                            <div style={{ background: "var(--amber-bg)", border: "1px solid var(--amber)", borderRadius: 10, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "var(--amber)" }}>
+                                <strong>{untaggedPct}% of resources</strong> are missing the <code>{allocationTag}</code> tag. Enforce tagging via {isAzure ? "Azure Policy" : "AWS Tag Policies"}.
+                            </div>
+                        )}
                         {allocationData.length === 0 ? (
-                            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:48, textAlign:"center" }}>
-                                <div style={{ fontSize:36, marginBottom:12 }}>🏷</div>
-                                <div style={{ fontSize:15, fontWeight:600, marginBottom:8 }}>No tag data found</div>
-                                <div style={{ fontSize:13, color:"var(--text2)" }}>Tag your resources with <code>{allocationTag}</code> to enable cost allocation.</div>
+                            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 48, textAlign: "center" }}>
+                                <div style={{ fontSize: 36, marginBottom: 12 }}>🏷</div>
+                                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>No tag data found</div>
+                                <div style={{ fontSize: 13, color: "var(--text2)" }}>Tag resources with <code>{allocationTag}</code> to enable allocation.</div>
                             </div>
                         ) : (
-                            <>
-                                {Number(untaggedPct) > 30 && (
-                                    <div style={{ background:"var(--amber-bg)", border:"1px solid var(--amber)", borderRadius:10, padding:"12px 16px", marginBottom:20, fontSize:13, color:"var(--amber)" }}>
-                                        <strong>{untaggedPct}% of resources</strong> are missing the <code>{allocationTag}</code> tag — cost allocation accuracy is reduced. Enforce tagging via AWS Tag Policies or Azure Policy.
-                                    </div>
-                                )}
-                                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(170px,1fr))", gap:12, marginBottom:24 }}>
-                                    {allocationData.map(({ tag, count, estimatedCost }) => {
-                                        const tagPct = allocationData.reduce((s,d)=>s+d.estimatedCost,0) > 0
-                                            ? (estimatedCost / allocationData.reduce((s,d)=>s+d.estimatedCost,0) * 100).toFixed(1) : "0";
-                                        return (
-                                            <div key={tag} style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"14px 16px", borderTop:`3px solid ${tag==="untagged" ? "var(--amber)" : cloud.color}` }}>
-                                                <div style={{ fontSize:11, fontWeight:600, color:"var(--text3)", textTransform:"capitalize", marginBottom:6 }}>{tag}</div>
-                                                <div style={{ fontSize:22, fontWeight:700, color: tag==="untagged" ? "var(--amber)" : cloud.color, marginBottom:2 }}>{fmt(estimatedCost, 0)}</div>
-                                                <div style={{ fontSize:11, color:"var(--text3)" }}>{count} resources · {tagPct}%</div>
-                                                <div style={{ height:4, background:"var(--surface2)", borderRadius:2, overflow:"hidden", marginTop:8 }}>
-                                                    <div style={{ height:"100%", background: tag==="untagged" ? "var(--amber)" : cloud.color, borderRadius:2, width:`${tagPct}%`, opacity:0.7 }} />
-                                                </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))", gap: 12 }}>
+                                {allocationData.map(({ tag, count, estimatedCost, directCost, sharedCost }) => {
+                                    const totalEC = allocationData.reduce((s, d) => s + d.estimatedCost, 0);
+                                    const tagPct = totalEC > 0 ? (estimatedCost / totalEC * 100).toFixed(1) : "0";
+                                    return (
+                                        <div key={tag} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", borderTop: `3px solid ${tag === "untagged" ? "var(--amber)" : cloud.color}` }}>
+                                            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text3)", textTransform: "capitalize", marginBottom: 6 }}>{tag}</div>
+                                            <div style={{ fontSize: 22, fontWeight: 700, color: tag === "untagged" ? "var(--amber)" : cloud.color, marginBottom: 4 }}>{fmt(estimatedCost, 0)}</div>
+                                            <div style={{ fontSize: 10, color: "var(--text3)", marginBottom: 2 }}>Direct: {fmt(directCost, 0)}</div>
+                                            {sharedCost > 0 && <div style={{ fontSize: 10, color: "var(--text3)", marginBottom: 4 }}>+ Shared: {fmt(sharedCost, 0)}</div>}
+                                            <div style={{ fontSize: 11, color: "var(--text3)" }}>{count} resources · {tagPct}%</div>
+                                            <div style={{ height: 4, background: "var(--surface2)", borderRadius: 2, overflow: "hidden", marginTop: 8 }}>
+                                                <div style={{ height: "100%", background: tag === "untagged" ? "var(--amber)" : cloud.color, borderRadius: 2, width: `${tagPct}%`, opacity: 0.7 }} />
                                             </div>
-                                        );
-                                    })}
-                                </div>
-                            </>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         )}
                     </div>
                 )}
 
-                {/* ═══════════════════ WHAT-IF ═══════════════════ */}
+                {/* ══ WHAT-IF ══ */}
                 {activeTab === "whatif" && (
                     <div>
-                        <div style={{ fontSize:18, fontWeight:700, marginBottom:4 }}>What-If simulator</div>
-                        <div style={{ fontSize:13, color:"var(--text2)", marginBottom:24 }}>Model cost impact of reducing or eliminating services</div>
-
-                        <div style={{ display:"grid", gridTemplateColumns:"1fr 280px", gap:20 }}>
+                        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>What-If simulator</div>
+                        <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 24 }}>Model cost impact of scaling or eliminating services</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 20 }}>
                             <div>
                                 {topServices.length === 0 ? (
-                                    <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:32, textAlign:"center", color:"var(--text3)", fontSize:13 }}>
-                                        Enable cost data to use the simulator
-                                    </div>
+                                    <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 32, textAlign: "center", color: "var(--text3)", fontSize: 13 }}>Enable cost data to use the simulator</div>
                                 ) : (
-                                    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                                         {topServices.slice(0, 8).map(({ name, val }) => {
                                             const change = whatIfChanges[name] ?? 0;
                                             return (
-                                                <div key={name} style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:10, padding:"14px 18px" }}>
-                                                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                                                        <span style={{ fontSize:13, fontWeight:500 }}>{name}</span>
-                                                        <span style={{ fontSize:13, fontWeight:600, color:"var(--text3)" }}>{fmt(val, 2)}/mo</span>
+                                                <div key={name} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "14px 18px" }}>
+                                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                                                        <span style={{ fontSize: 13, fontWeight: 500 }}>{name}</span>
+                                                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text3)" }}>{fmt(val, 2)}/mo</span>
                                                     </div>
-                                                    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                                                        <input type="range" min={-100} max={50} step={5} value={change}
-                                                               onChange={e => setWhatIfChanges(p => ({ ...p, [name]: Number(e.target.value) }))}
-                                                               style={{ flex:1, accentColor: cloud.color }} />
-                                                        <span style={{ fontSize:12, fontWeight:700, minWidth:48, textAlign:"right", color: change < 0 ? "var(--green)" : change > 0 ? "var(--red)" : "var(--text3)" }}>
-                                                            {change > 0 ? "+" : ""}{change}%
-                                                        </span>
-                                                        <span style={{ fontSize:12, color:"var(--text2)", minWidth:72, textAlign:"right" }}>
-                                                            {fmt(val * (1 + change / 100), 2)}
-                                                        </span>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                                        <input type="range" min={-100} max={50} step={5} value={change} onChange={e => setWhatIfChanges(p => ({ ...p, [name]: Number(e.target.value) }))} style={{ flex: 1, accentColor: cloud.color }} />
+                                                        <span style={{ fontSize: 12, fontWeight: 700, minWidth: 48, textAlign: "right", color: change < 0 ? "var(--green)" : change > 0 ? "var(--red)" : "var(--text3)" }}>{change > 0 ? "+" : ""}{change}%</span>
+                                                        <span style={{ fontSize: 12, color: "var(--text2)", minWidth: 72, textAlign: "right" }}>{fmt(val * (1 + change / 100), 2)}</span>
                                                     </div>
                                                 </div>
                                             );
                                         })}
-                                        <button onClick={() => setWhatIfChanges({})} style={{ padding:"8px 16px", fontSize:12, fontWeight:600, borderRadius:8, border:"1px solid var(--border)", background:"var(--surface2)", color:"var(--text2)", cursor:"pointer" }}>
-                                            Reset all
-                                        </button>
+                                        <button onClick={() => setWhatIfChanges({})} style={{ padding: "8px 16px", fontSize: 12, fontWeight: 600, borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface2)", color: "var(--text2)", cursor: "pointer" }}>Reset all</button>
                                     </div>
                                 )}
                             </div>
-
-                            {/* Summary panel */}
-                            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-                                <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:20 }}>
-                                    <div style={{ fontSize:13, fontWeight:600, marginBottom:16 }}>Simulation results</div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                                <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 }}>
+                                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 16 }}>Simulation results</div>
                                     {[
-                                        { label:"Current spend", value: fmt(total), color:"var(--text)" },
-                                        { label:"Simulated spend", value: fmt(whatIfTotal), color: whatIfTotal < total ? "var(--green)" : whatIfTotal > total ? "var(--red)" : "var(--text)" },
-                                        { label:"Delta", value: `${whatIfDelta >= 0 ? "+" : ""}${fmt(whatIfDelta, 2)}`, color: whatIfDelta < 0 ? "var(--green)" : whatIfDelta > 0 ? "var(--red)" : "var(--text3)" },
+                                        { label: "Current spend", value: fmt(total), color: "var(--text)" },
+                                        { label: "Simulated spend", value: fmt(whatIfTotal), color: whatIfTotal < total ? "var(--green)" : whatIfTotal > total ? "var(--red)" : "var(--text)" },
+                                        { label: "Delta", value: `${whatIfDelta >= 0 ? "+" : ""}${fmt(whatIfDelta, 2)}`, color: whatIfDelta < 0 ? "var(--green)" : whatIfDelta > 0 ? "var(--red)" : "var(--text3)" },
                                     ].map(({ label, value, color }) => (
-                                        <div key={label} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:"1px solid var(--border)" }}>
-                                            <span style={{ fontSize:13, color:"var(--text2)" }}>{label}</span>
-                                            <span style={{ fontSize:14, fontWeight:700, color }}>{value}</span>
+                                        <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
+                                            <span style={{ fontSize: 13, color: "var(--text2)" }}>{label}</span>
+                                            <span style={{ fontSize: 14, fontWeight: 700, color }}>{value}</span>
                                         </div>
                                     ))}
                                     {whatIfSaving > 0 && (
-                                        <div style={{ marginTop:16, background:"var(--green-bg)", border:"1px solid var(--green)", borderRadius:8, padding:"12px 14px", textAlign:"center" }}>
-                                            <div style={{ fontSize:11, color:"var(--green)", fontWeight:600, marginBottom:4 }}>PROJECTED MONTHLY SAVING</div>
-                                            <div style={{ fontSize:24, fontWeight:700, color:"var(--green)" }}>{fmt(whatIfSaving, 2)}</div>
-                                            <div style={{ fontSize:11, color:"var(--green)", marginTop:2 }}>{fmt(whatIfSaving * 12, 0)}/year</div>
+                                        <div style={{ marginTop: 16, background: "var(--green-bg)", border: "1px solid var(--green)", borderRadius: 8, padding: "12px 14px", textAlign: "center" }}>
+                                            <div style={{ fontSize: 11, color: "var(--green)", fontWeight: 600, marginBottom: 4 }}>PROJECTED MONTHLY SAVING</div>
+                                            <div style={{ fontSize: 24, fontWeight: 700, color: "var(--green)" }}>{fmt(whatIfSaving, 2)}</div>
+                                            <div style={{ fontSize: 11, color: "var(--green)", marginTop: 2 }}>{fmt(whatIfSaving * 12, 0)}/year</div>
                                         </div>
                                     )}
-                                </div>
-                                <div style={{ background:"var(--surface2)", border:"1px solid var(--border)", borderRadius:10, padding:"12px 14px", fontSize:12, color:"var(--text3)", lineHeight:1.6 }}>
-                                    ℹ️ Drag sliders to simulate % change. Negative = reduction (e.g. -100% = shut down). Results are estimates based on current MTD spend.
                                 </div>
                             </div>
                         </div>
                     </div>
                 )}
 
-                {/* ═══════════════════ SAVINGS ═══════════════════ */}
+                {/* ══ SAVINGS ══ */}
                 {activeTab === "savings" && (
                     <div>
-                        <div style={{ fontSize:18, fontWeight:700, marginBottom:4 }}>Savings recommendations</div>
-                        <div style={{ fontSize:13, color:"var(--text2)", marginBottom:24 }}>Cost optimisation actions based on your {cloud.name} infrastructure</div>
-
-                        <div style={{ background:"linear-gradient(135deg, #1D9E75, #0F6E56)", borderRadius:12, padding:24, marginBottom:24, color:"white" }}>
-                            <div style={{ fontSize:13, fontWeight:600, opacity:0.85, marginBottom:4 }}>TOTAL POTENTIAL SAVINGS</div>
-                            <div style={{ fontSize:36, fontWeight:700, letterSpacing:"-0.03em", marginBottom:4 }}>{fmt(totalSavings + rightsizingSavings, 0)}/month</div>
-                            <div style={{ fontSize:13, opacity:0.8 }}>{recommendations.length} recommendations · {fmt((totalSavings + rightsizingSavings) * 12, 0)}/year</div>
+                        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Savings recommendations</div>
+                        <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 24 }}>
+                            <PricingBadge type="exact" /> = calculated from actual on-demand rates · <PricingBadge type="estimate" /> = heuristic estimate
                         </div>
-
+                        <div style={{ background: "linear-gradient(135deg, #1D9E75, #0F6E56)", borderRadius: 12, padding: 24, marginBottom: 24, color: "white" }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                                <div>
+                                    <div style={{ fontSize: 13, fontWeight: 600, opacity: 0.85, marginBottom: 4 }}>TOTAL POTENTIAL SAVINGS</div>
+                                    <div style={{ fontSize: 36, fontWeight: 700, letterSpacing: "-0.03em", marginBottom: 4 }}>{fmt(totalSavings, 0)}/month</div>
+                                    <div style={{ fontSize: 13, opacity: 0.8 }}>{recommendations.length} recommendations · {fmt(totalSavings * 12, 0)}/year</div>
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: 13, fontWeight: 600, opacity: 0.85, marginBottom: 4 }}>REALIZED SAVINGS</div>
+                                    <div style={{ fontSize: 36, fontWeight: 700, letterSpacing: "-0.03em", marginBottom: 4 }}>{fmt(realizedSavings, 0)}/month</div>
+                                    <div style={{ fontSize: 13, opacity: 0.8 }}>{optimTasks.filter(t => t.status === "resolved" || t.status === "verified").length} tasks completed · {fmt(realizedSavings * 12, 0)}/year</div>
+                                </div>
+                            </div>
+                        </div>
                         {recommendations.length > 0 ? (
-                            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                                 {recommendations.map((rec, i) => (
-                                    <div key={i} style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:20, borderLeft:`4px solid ${rec.severity==="high"?"var(--red)":rec.severity==="medium"?"var(--amber)":"var(--green)"}` }}>
-                                        <div style={{ display:"flex", alignItems:"flex-start", gap:14 }}>
-                                            <div style={{ fontSize:24, flexShrink:0 }}>{rec.icon}</div>
-                                            <div style={{ flex:1 }}>
-                                                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
-                                                    <span style={{ fontSize:14, fontWeight:600 }}>{rec.title}</span>
+                                    <div key={i} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, borderLeft: `4px solid ${rec.severity === "critical" || rec.severity === "high" ? "var(--red)" : rec.severity === "medium" ? "var(--amber)" : "var(--green)"}` }}>
+                                        <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+                                            <div style={{ fontSize: 24, flexShrink: 0 }}>{rec.icon}</div>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                                                    <span style={{ fontSize: 14, fontWeight: 600 }}>{rec.title}</span>
                                                     <SevBadge sev={rec.severity} />
+                                                    {rec.pricing && rec.pricing !== "n/a" && <PricingBadge type={rec.pricing} />}
                                                 </div>
-                                                <div style={{ fontSize:13, color:"var(--text2)", marginBottom:10, lineHeight:1.6 }}>{rec.desc}</div>
-                                                <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                                                    {rec.saving > 0 && <span style={{ fontSize:13, fontWeight:700, color:"#1D9E75" }}>💰 Save ~{fmt(rec.saving, 0)}/month</span>}
-                                                    {rec.link ? (
-                                                        <a href={rec.link} target="_blank" rel="noopener noreferrer" style={{ padding:"4px 12px", background:"var(--accent)", color:"white", border:"none", borderRadius:6, fontSize:12, fontWeight:600, cursor:"pointer", textDecoration:"none" }}>{rec.linkLabel} →</a>
-                                                    ) : rec.linkLabel ? (
-                                                        <button onClick={() => setActiveTab(rec.linkLabel?.toLowerCase().includes("rightsiz") ? "rightsizing" : "savings")} style={{ padding:"4px 12px", background:"var(--accent-bg)", color:"var(--accent)", border:"1px solid var(--accent)", borderRadius:6, fontSize:12, fontWeight:600, cursor:"pointer" }}>{rec.linkLabel}</button>
-                                                    ) : (
-                                                        <span style={{ fontSize:12, color:"var(--text3)" }}>Manual action</span>
-                                                    )}
+                                                <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 10, lineHeight: 1.6 }}>{rec.desc}</div>
+                                                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                                                    {rec.saving > 0 && <span style={{ fontSize: 13, fontWeight: 700, color: "#1D9E75" }}>💰 Save ~{fmt(rec.saving, 0)}/month</span>}
+                                                    {rec.link && <a href={rec.link} target="_blank" rel="noopener noreferrer" style={{ padding: "4px 12px", background: "var(--accent)", color: "white", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", textDecoration: "none" }}>{rec.action} →</a>}
+                                                    <button onClick={() => createTask(rec)} style={{ padding: "4px 12px", background: "var(--surface2)", color: cloud.color, border: `1px solid ${cloud.color}`, borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>+ Add to Workflow</button>
                                                 </div>
                                             </div>
                                         </div>
@@ -4404,152 +4541,373 @@ const FinOpsSection = ({ awsData, selectedCloud, accountId: propAccountId }) => 
                                 ))}
                             </div>
                         ) : (
-                            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:48, textAlign:"center" }}>
-                                <div style={{ fontSize:36, marginBottom:12 }}>✅</div>
-                                <div style={{ fontSize:15, fontWeight:600, marginBottom:8 }}>No recommendations yet</div>
-                                <div style={{ fontSize:13, color:"var(--text2)" }}>Run a scan to get personalised savings recommendations</div>
+                            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 48, textAlign: "center" }}>
+                                <div style={{ fontSize: 36, marginBottom: 12 }}>✅</div>
+                                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>No recommendations</div>
+                                <div style={{ fontSize: 13, color: "var(--text2)" }}>Run a scan to generate savings recommendations</div>
                             </div>
                         )}
                     </div>
                 )}
 
-                {/* ═══════════════════ BUDGETS ═══════════════════ */}
+                {/* ══ WORKFLOW ══ */}
+                {activeTab === "workflow" && (
+                    <div>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                            <div style={{ fontSize: 18, fontWeight: 700 }}>Optimization workflow</div>
+                            <div style={{ display: "flex", gap: 12, fontSize: 12, color: "var(--text3)" }}>
+                                <span>Realized: <strong style={{ color: "var(--green)" }}>{fmt(realizedSavings, 0)}/mo</strong></span>
+                                <span>Pending: <strong style={{ color: "var(--amber)" }}>{fmt(optimTasks.filter(t => !["resolved", "verified"].includes(t.status)).reduce((s, t) => s + t.saving, 0), 0)}/mo</strong></span>
+                            </div>
+                        </div>
+                        <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 24 }}>Track savings recommendations from Identified → Assigned → In Progress → Resolved → Verified</div>
+                        {optimTasks.length === 0 ? (
+                            <div style={{ background: "var(--surface)", border: "2px dashed var(--border)", borderRadius: 12, padding: 48, textAlign: "center" }}>
+                                <div style={{ fontSize: 36, marginBottom: 12 }}>⚙️</div>
+                                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>No tasks yet</div>
+                                <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 20 }}>Go to Savings tab and click "+ Add to Workflow" on any recommendation</div>
+                                <button onClick={() => setActiveTab("savings")} style={{ padding: "10px 20px", background: cloud.color, color: "white", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>→ View Savings</button>
+                            </div>
+                        ) : (
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 12 }}>
+                                {TASK_STATUSES.map(status => {
+                                    const tasks = optimTasks.filter(t => t.status === status);
+                                    return (
+                                        <div key={status} style={{ background: "var(--surface2)", borderRadius: 12, padding: 12, minHeight: 200 }}>
+                                            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: TASK_STATUS_COLORS[status], marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                                <span>{TASK_STATUS_LABELS[status]}</span>
+                                                <span style={{ background: "var(--surface)", borderRadius: 20, padding: "1px 7px", fontSize: 11 }}>{tasks.length}</span>
+                                            </div>
+                                            {tasks.map(task => (
+                                                <div key={task.id} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: 12, marginBottom: 8 }}>
+                                                    <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4, lineHeight: 1.4 }}>{task.title}</div>
+                                                    {task.saving > 0 && <div style={{ fontSize: 11, color: "var(--green)", fontWeight: 600, marginBottom: 6 }}>💰 {fmt(task.saving, 0)}/mo</div>}
+                                                    <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 8 }}>{task.action}</div>
+                                                    {task.assignee && <div style={{ fontSize: 10, color: "var(--text3)" }}>👤 {task.assignee}</div>}
+                                                    {task.dueDate && <div style={{ fontSize: 10, color: "var(--text3)" }}>📅 {task.dueDate}</div>}
+                                                    <div style={{ display: "flex", gap: 4, marginTop: 8, flexWrap: "wrap" }}>
+                                                        {TASK_STATUSES.filter(s => s !== status).slice(0, 2).map(s => (
+                                                            <button key={s} onClick={() => updateTask(task.id, { status: s })} style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, border: "1px solid var(--border)", background: "var(--surface2)", color: "var(--text3)", cursor: "pointer", whiteSpace: "nowrap" }}>
+                                                                → {TASK_STATUS_LABELS[s]}
+                                                            </button>
+                                                        ))}
+                                                        <button onClick={() => deleteTask(task.id)} style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, border: "none", background: "var(--red-bg)", color: "var(--red)", cursor: "pointer" }}>✕</button>
+                                                    </div>
+                                                    {status === "identified" && (
+                                                        <div style={{ marginTop: 8, display: "flex", gap: 4 }}>
+                                                            <input placeholder="Assign to..." value={task.assignee || ""} onChange={e => updateTask(task.id, { assignee: e.target.value })} style={{ flex: 1, fontSize: 10, padding: "3px 6px", borderRadius: 4, border: "1px solid var(--border)", background: "var(--surface2)", color: "var(--text)" }} />
+                                                            <input type="date" value={task.dueDate || ""} onChange={e => updateTask(task.id, { dueDate: e.target.value })} style={{ fontSize: 10, padding: "3px 4px", borderRadius: 4, border: "1px solid var(--border)", background: "var(--surface2)", color: "var(--text)", width: 90 }} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* ══ BUDGETS ══ */}
                 {activeTab === "budgets" && (
                     <div>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
                             <div>
-                                <div style={{ fontSize:18, fontWeight:700, marginBottom:4 }}>Budget management</div>
-                                <div style={{ fontSize:13, color:"var(--text2)" }}>Set spend limits with threshold alerts</div>
+                                <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Budget management</div>
+                                <div style={{ fontSize: 13, color: "var(--text2)" }}>Set spend limits with threshold alerts</div>
                             </div>
-                            <button onClick={() => setShowBudgetModal(true)} style={{ padding:"8px 16px", background:cloud.color, color:"white", border:"none", borderRadius:8, fontSize:13, fontWeight:600, cursor:"pointer" }}>+ New Budget</button>
+                            <button onClick={() => setShowBudgetModal(true)} style={{ padding: "8px 16px", background: cloud.color, color: "white", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>+ New Budget</button>
                         </div>
-
                         {showBudgetModal && (
-                            <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center" }}
-                                 onClick={e => { if (e.target===e.currentTarget) setShowBudgetModal(false); }}>
-                                <div style={{ background:"var(--surface)", borderRadius:16, padding:28, width:"100%", maxWidth:440, boxShadow:"0 12px 40px rgba(0,0,0,0.2)" }}>
-                                    <div style={{ fontSize:16, fontWeight:700, marginBottom:20 }}>Create budget</div>
-                                    {[
-                                        { label:"Budget Name",  key:"name",   type:"text",   placeholder:"e.g. Production Monthly" },
-                                        { label:"Amount (USD)", key:"amount", type:"number", placeholder:"e.g. 500" },
-                                    ].map(({ label, key, type, placeholder }) => (
-                                        <div key={key} style={{ marginBottom:14 }}>
-                                            <label style={{ display:"block", fontSize:12, fontWeight:600, color:"var(--text2)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>{label}</label>
+                            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={e => { if (e.target === e.currentTarget) setShowBudgetModal(false); }}>
+                                <div style={{ background: "var(--surface)", borderRadius: 16, padding: 28, width: "100%", maxWidth: 440, boxShadow: "0 12px 40px rgba(0,0,0,0.2)" }}>
+                                    <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 20 }}>Create budget</div>
+                                    {[{ label: "Budget Name", key: "name", type: "text", placeholder: "e.g. Production Monthly" }, { label: "Amount (USD)", key: "amount", type: "number", placeholder: "e.g. 500" }].map(({ label, key, type, placeholder }) => (
+                                        <div key={key} style={{ marginBottom: 14 }}>
+                                            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{label}</label>
                                             <input className="form-input" type={type} placeholder={placeholder} value={newBudget[key]} onChange={e => setNewBudget(p => ({ ...p, [key]: e.target.value }))} />
                                         </div>
                                     ))}
-                                    <div style={{ marginBottom:14 }}>
-                                        <label style={{ display:"block", fontSize:12, fontWeight:600, color:"var(--text2)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Alert threshold</label>
-                                        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                                            <input type="range" min={50} max={100} step={5} value={newBudget.alertAt}
-                                                   onChange={e => setNewBudget(p => ({ ...p, alertAt: Number(e.target.value) }))}
-                                                   style={{ flex:1, accentColor:cloud.color }} />
-                                            <span style={{ fontSize:13, fontWeight:700, minWidth:42, color:cloud.color }}>{newBudget.alertAt}%</span>
+                                    <div style={{ marginBottom: 14 }}>
+                                        <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Alert threshold</label>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                            <input type="range" min={50} max={100} step={5} value={newBudget.alertAt} onChange={e => setNewBudget(p => ({ ...p, alertAt: Number(e.target.value) }))} style={{ flex: 1, accentColor: cloud.color }} />
+                                            <span style={{ fontSize: 13, fontWeight: 700, minWidth: 42, color: cloud.color }}>{newBudget.alertAt}%</span>
                                         </div>
-                                        <div style={{ fontSize:11, color:"var(--text3)", marginTop:4 }}>Alert fires when spend reaches {newBudget.alertAt}% of budget</div>
                                     </div>
-                                    <div style={{ marginBottom:14 }}>
-                                        <label style={{ display:"block", fontSize:12, fontWeight:600, color:"var(--text2)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Period</label>
+                                    <div style={{ marginBottom: 14 }}>
+                                        <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Period</label>
                                         <select className="form-input" value={newBudget.period} onChange={e => setNewBudget(p => ({ ...p, period: e.target.value }))}>
-                                            {["Monthly","Quarterly","Annual"].map(o => <option key={o}>{o}</option>)}
+                                            {["Monthly", "Quarterly", "Annual"].map(o => <option key={o}>{o}</option>)}
                                         </select>
                                     </div>
-                                    <div style={{ marginBottom:20 }}>
-                                        <label style={{ display:"block", fontSize:12, fontWeight:600, color:"var(--text2)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Service filter</label>
+                                    <div style={{ marginBottom: 20 }}>
+                                        <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Service filter</label>
                                         <select className="form-input" value={newBudget.service} onChange={e => setNewBudget(p => ({ ...p, service: e.target.value }))}>
                                             {["All Services", ...Object.keys(byService).slice(0, 15)].map(o => <option key={o}>{o}</option>)}
                                         </select>
                                     </div>
-                                    <div style={{ display:"flex", gap:8 }}>
-                                        <button onClick={saveBudget} style={{ flex:2, padding:"10px", background:cloud.color, color:"white", border:"none", borderRadius:8, fontSize:13, fontWeight:600, cursor:"pointer" }}>Create Budget</button>
-                                        <button onClick={() => setShowBudgetModal(false)} style={{ flex:1, padding:"10px", background:"var(--surface2)", border:"1px solid var(--border)", borderRadius:8, fontSize:13, cursor:"pointer" }}>Cancel</button>
+                                    <div style={{ display: "flex", gap: 8 }}>
+                                        <button onClick={saveBudget} style={{ flex: 2, padding: "10px", background: cloud.color, color: "white", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Create Budget</button>
+                                        <button onClick={() => setShowBudgetModal(false)} style={{ flex: 1, padding: "10px", background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, cursor: "pointer" }}>Cancel</button>
                                     </div>
                                 </div>
                             </div>
                         )}
-
-                        {/* Native cloud budgets */}
                         {(awsData?.budgets || []).length > 0 && (
-                            <div style={{ marginBottom:20 }}>
-                                <div style={{ fontSize:12, fontWeight:600, color:"var(--text3)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:12 }}>{cloud.name} budgets (from account)</div>
-                                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                            <div style={{ marginBottom: 20 }}>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>{cloud.name} budgets (from account)</div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                                     {(awsData.budgets || []).map((b, i) => {
-                                        const limit  = parseFloat(b.BudgetLimit?.Amount ?? b.limit ?? b.amount ?? 0);
-                                        const spent  = parseFloat(b.CalculatedSpend?.ActualSpend?.Amount ?? b.spent ?? 0);
+                                        const limit = parseFloat(b.BudgetLimit?.Amount ?? b.limit ?? b.amount ?? 0);
+                                        const spent = parseFloat(b.CalculatedSpend?.ActualSpend?.Amount ?? b.spent ?? 0);
                                         const usedPct = limit > 0 ? (spent / limit * 100) : 0;
-                                        const name   = b.BudgetName ?? b.name ?? `Budget ${i+1}`;
+                                        const name = b.BudgetName ?? b.name ?? `Budget ${i + 1}`;
                                         return (
-                                            <div key={i} style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:18 }}>
-                                                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:10 }}>
-                                                    <span style={{ fontWeight:600 }}>{name}</span>
-                                                    <span style={{ fontSize:12, color:"var(--text3)" }}>{b.TimeUnit ?? b.period ?? "Monthly"}</span>
+                                            <div key={i} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 18 }}>
+                                                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                                                    <span style={{ fontWeight: 600 }}>{name}</span>
+                                                    <span style={{ fontSize: 12, color: "var(--text3)" }}>{b.TimeUnit ?? b.period ?? "Monthly"}</span>
                                                 </div>
-                                                <div style={{ display:"flex", justifyContent:"space-between", fontSize:13, marginBottom:8 }}>
-                                                    <span style={{ color:"var(--text2)" }}>Spent: <strong>{fmt(spent)}</strong></span>
-                                                    <span style={{ color:"var(--text2)" }}>Limit: <strong>{fmt(limit)}</strong></span>
+                                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 8 }}>
+                                                    <span style={{ color: "var(--text2)" }}>Spent: <strong>{fmt(spent)}</strong></span>
+                                                    <span style={{ color: "var(--text2)" }}>Limit: <strong>{fmt(limit)}</strong></span>
                                                 </div>
-                                                <div style={{ height:8, background:"var(--surface2)", borderRadius:4, overflow:"hidden" }}>
-                                                    <div style={{ height:"100%", borderRadius:4, background: usedPct>90?"var(--red)":usedPct>70?"var(--amber)":"var(--green)", width:`${Math.min(usedPct,100).toFixed(1)}%` }} />
+                                                <div style={{ height: 8, background: "var(--surface2)", borderRadius: 4, overflow: "hidden" }}>
+                                                    <div style={{ height: "100%", borderRadius: 4, background: usedPct > 90 ? "var(--red)" : usedPct > 70 ? "var(--amber)" : "var(--green)", width: `${Math.min(usedPct, 100).toFixed(1)}%` }} />
                                                 </div>
-                                                <div style={{ fontSize:11, color:"var(--text3)", marginTop:4, textAlign:"right" }}>{usedPct.toFixed(1)}% used</div>
+                                                <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 4, textAlign: "right" }}>{usedPct.toFixed(1)}% used</div>
                                             </div>
                                         );
                                     })}
                                 </div>
                             </div>
                         )}
-
-                        {/* Custom budgets */}
-                        {savedBudgets.length > 0 && (
-                            <div style={{ marginBottom:20 }}>
-                                <div style={{ fontSize:12, fontWeight:600, color:"var(--text3)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:12 }}>Custom budgets</div>
-                                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                        {savedBudgets.length > 0 ? (
+                            <div style={{ marginBottom: 20 }}>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>Custom budgets</div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                                     {savedBudgets.map(b => {
-                                        const limit    = parseFloat(b.amount);
-                                        const spent    = getBudgetSpent(b);
-                                        const usedPct  = limit > 0 ? (spent / limit * 100) : 0;
-                                        const alertPct = b.alertAt || 80;
-                                        const alertFired = usedPct >= alertPct;
+                                        const limit = parseFloat(b.amount), spent = getBudgetSpent(b);
+                                        const usedPct = limit > 0 ? (spent / limit * 100) : 0;
+                                        const alertPct = b.alertAt || 80, alertFired = usedPct >= alertPct;
                                         return (
-                                            <div key={b.id} style={{ background:"var(--surface)", border:`1px solid ${alertFired ? "var(--amber)" : "var(--border)"}`, borderRadius:12, padding:18 }}>
-                                                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:10 }}>
-                                                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                                                        <span style={{ fontWeight:600 }}>{b.name}</span>
-                                                        {alertFired && <span style={{ fontSize:10, fontWeight:700, background:"var(--amber-bg)", color:"var(--amber)", borderRadius:20, padding:"2px 8px" }}>⚠️ Alert at {alertPct}%</span>}
+                                            <div key={b.id} style={{ background: "var(--surface)", border: `1px solid ${alertFired ? "var(--amber)" : "var(--border)"}`, borderRadius: 12, padding: 18 }}>
+                                                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                                        <span style={{ fontWeight: 600 }}>{b.name}</span>
+                                                        {alertFired && <span style={{ fontSize: 10, fontWeight: 700, background: "var(--amber-bg)", color: "var(--amber)", borderRadius: 20, padding: "2px 8px" }}>⚠️ Alert at {alertPct}%</span>}
                                                     </div>
-                                                    <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                                                        <span style={{ fontSize:11, background:"var(--surface2)", padding:"2px 8px", borderRadius:20, color:"var(--text3)" }}>{b.period}</span>
-                                                        <button onClick={() => deleteBudget(b.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"var(--red)", fontSize:16 }}>×</button>
+                                                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                                        <span style={{ fontSize: 11, background: "var(--surface2)", padding: "2px 8px", borderRadius: 20, color: "var(--text3)" }}>{b.period}</span>
+                                                        <button onClick={() => deleteBudget(b.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--red)", fontSize: 16 }}>×</button>
                                                     </div>
                                                 </div>
-                                                <div style={{ fontSize:12, color:"var(--text3)", marginBottom:8 }}>
-                                                    {b.service} · Alert at {alertPct}%
+                                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 8 }}>
+                                                    <span style={{ color: "var(--text2)" }}>Current: <strong style={{ color: usedPct > 90 ? "var(--red)" : "var(--text)" }}>{fmt(spent)}</strong></span>
+                                                    <span style={{ color: "var(--text2)" }}>Budget: <strong>{fmt(limit)}</strong></span>
                                                 </div>
-                                                <div style={{ display:"flex", justifyContent:"space-between", fontSize:13, marginBottom:8 }}>
-                                                    <span style={{ color:"var(--text2)" }}>Current: <strong style={{ color: usedPct>90?"var(--red)":"var(--text)" }}>{fmt(spent)}</strong></span>
-                                                    <span style={{ color:"var(--text2)" }}>Budget: <strong>{fmt(limit)}</strong></span>
+                                                <div style={{ height: 8, background: "var(--surface2)", borderRadius: 4, overflow: "hidden", position: "relative" }}>
+                                                    <div style={{ height: "100%", borderRadius: 4, transition: "width 0.5s", background: usedPct > 90 ? "var(--red)" : usedPct > 70 ? "var(--amber)" : "var(--green)", width: `${Math.min(usedPct, 100).toFixed(1)}%` }} />
+                                                    <div style={{ position: "absolute", top: 0, bottom: 0, left: `${alertPct}%`, width: 2, background: "var(--amber)", transform: "translateX(-50%)" }} />
                                                 </div>
-                                                <div style={{ height:8, background:"var(--surface2)", borderRadius:4, overflow:"hidden", position:"relative" }}>
-                                                    <div style={{ height:"100%", borderRadius:4, transition:"width 0.5s", background: usedPct>90?"var(--red)":usedPct>70?"var(--amber)":"var(--green)", width:`${Math.min(usedPct,100).toFixed(1)}%` }} />
-                                                    {/* Alert threshold marker */}
-                                                    <div style={{ position:"absolute", top:0, bottom:0, left:`${alertPct}%`, width:2, background:"var(--amber)", transform:"translateX(-50%)" }} />
-                                                </div>
-                                                <div style={{ fontSize:11, marginTop:4, textAlign:"right", fontWeight: usedPct>90?700:400, color: usedPct>90?"var(--red)":"var(--text3)" }}>
-                                                    {usedPct.toFixed(1)}% used {usedPct>90?"⚠️ Over budget!":usedPct>=alertPct?"⚠️ Alert threshold reached":"✓ On track"}
+                                                <div style={{ fontSize: 11, marginTop: 4, textAlign: "right", fontWeight: usedPct > 90 ? 700 : 400, color: usedPct > 90 ? "var(--red)" : "var(--text3)" }}>
+                                                    {usedPct.toFixed(1)}% {usedPct > 90 ? "⚠️ Over budget!" : usedPct >= alertPct ? "⚠️ Alert reached" : "✓ On track"}
                                                 </div>
                                             </div>
                                         );
                                     })}
                                 </div>
                             </div>
+                        ) : (awsData?.budgets || []).length === 0 && (
+                            <div style={{ background: "var(--surface)", border: "2px dashed var(--border)", borderRadius: 12, padding: 48, textAlign: "center" }}>
+                                <div style={{ fontSize: 36, marginBottom: 12 }}>🎯</div>
+                                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>No budgets yet</div>
+                                <button onClick={() => setShowBudgetModal(true)} style={{ padding: "10px 20px", background: cloud.color, color: "white", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>+ Create First Budget</button>
+                            </div>
                         )}
+                    </div>
+                )}
 
-                        {savedBudgets.length === 0 && (awsData?.budgets||[]).length === 0 && (
-                            <div style={{ background:"var(--surface)", border:"2px dashed var(--border)", borderRadius:12, padding:48, textAlign:"center" }}>
-                                <div style={{ fontSize:36, marginBottom:12 }}>🎯</div>
-                                <div style={{ fontSize:15, fontWeight:600, marginBottom:8 }}>No budgets yet</div>
-                                <div style={{ fontSize:13, color:"var(--text2)", marginBottom:20 }}>Create a budget with alert thresholds to track cloud spending</div>
-                                <button onClick={() => setShowBudgetModal(true)} style={{ padding:"10px 20px", background:cloud.color, color:"white", border:"none", borderRadius:8, fontSize:13, fontWeight:600, cursor:"pointer" }}>+ Create First Budget</button>
+                {/* ══ CARBON ══ */}
+                {activeTab === "carbon" && (
+                    <div>
+                        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Carbon footprint</div>
+                        <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 24 }}>Estimated CO2e per month based on instance type, region energy intensity (gCO2e/kWh), and average cloud PUE of 1.2</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginBottom: 24 }}>
+                            {[
+                                { label: "Total CO2e / month", value: `${fmtN(carbonData.totalCO2eTonnes, 3)} tonnes`, color: "#22c55e" },
+                                { label: "Highest-carbon region", value: carbonData.worstRegion?.region || "—", color: "var(--red)" },
+                                { label: "Potential CO2 saving", value: carbonData.greenSavingCO2 > 0 ? `${fmtN(carbonData.greenSavingCO2 / 1000, 3)} t/mo` : "—", color: "var(--green)" },
+                            ].map(({ label, value, color }) => (
+                                <div key={label} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, borderLeft: `4px solid ${color}` }}>
+                                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{label}</div>
+                                    <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
+                                </div>
+                            ))}
+                        </div>
+                        {carbonData.greenAlt && carbonData.worstRegion && (
+                            <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 12, padding: 20, marginBottom: 24 }}>
+                                <div style={{ fontSize: 14, fontWeight: 600, color: "#15803d", marginBottom: 8 }}>🌱 Green region opportunity</div>
+                                <div style={{ fontSize: 13, color: "#166534", lineHeight: 1.6 }}>
+                                    Moving workloads from <strong>{carbonData.worstRegion.region}</strong> ({carbonData.worstRegion.factor} gCO2e/kWh) to <strong>{carbonData.greenAlt}</strong> ({getCarbonFactor(carbonData.greenAlt)} gCO2e/kWh) would save approximately <strong>{fmtN(carbonData.greenSavingCO2 / 1000, 3)} tonnes CO2e/month</strong> — equivalent to {fmtN(carbonData.greenSavingCO2 / 1000 * 4.6, 1)} car-miles avoided.
+                                </div>
+                            </div>
+                        )}
+                        {carbonData.regions.length > 0 ? (
+                            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+                                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                                    <thead><tr style={{ background: "var(--surface2)" }}>
+                                        {["Region", "Instances", "Energy intensity", "Est. kWh/mo", "Est. CO2e/mo", "Carbon level"].map(h => (
+                                            <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid var(--border)", color: "var(--text3)" }}>{h}</th>
+                                        ))}
+                                    </tr></thead>
+                                    <tbody>
+                                    {carbonData.regions.map((r, i) => {
+                                        const level = r.factor < 100 ? "🟢 Very low" : r.factor < 300 ? "🟡 Low" : r.factor < 500 ? "🟠 Medium" : "🔴 High";
+                                        return (
+                                            <tr key={r.region} style={{ borderBottom: "1px solid var(--border)" }}>
+                                                <td style={{ padding: "10px 14px", fontSize: 12, fontWeight: 500, fontFamily: "monospace" }}>{r.region}</td>
+                                                <td style={{ padding: "10px 14px", fontSize: 12 }}>{r.instances}</td>
+                                                <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text2)" }}>{r.factor} gCO2e/kWh</td>
+                                                <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text2)" }}>{fmtN(r.kwh, 0)} kWh</td>
+                                                <td style={{ padding: "10px 14px", fontSize: 13, fontWeight: 700, color: r.co2eTonnes > 0.5 ? "var(--red)" : "var(--green)" }}>{fmtN(r.co2eTonnes, 3)} t</td>
+                                                <td style={{ padding: "10px 14px", fontSize: 12 }}>{level}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 48, textAlign: "center" }}>
+                                <div style={{ fontSize: 36, marginBottom: 12 }}>🌱</div>
+                                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>No instance data for carbon calculation</div>
+                                <div style={{ fontSize: 13, color: "var(--text2)" }}>Run a scan to estimate your cloud carbon footprint</div>
+                            </div>
+                        )}
+                        <div style={{ marginTop: 16, fontSize: 11, color: "var(--text3)", lineHeight: 1.6 }}>
+                            ℹ️ Carbon estimates use Electricity Maps regional intensity data (2024), a cloud PUE of 1.2, and instance-type power envelopes. For certified data, use {isAzure ? "Azure Emissions Impact Dashboard" : "AWS Customer Carbon Footprint Tool"}.
+                        </div>
+                    </div>
+                )}
+
+                {/* ══ MATURITY ══ */}
+                {activeTab === "maturity" && (
+                    <div>
+                        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>FinOps maturity assessment</div>
+                        <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 24 }}>Based on the FinOps Foundation Crawl / Walk / Run framework across 10 capabilities</div>
+                        <div style={{ background: `linear-gradient(135deg, ${maturity.phase === "Run" ? "#1D9E75,#0F6E56" : maturity.phase === "Walk" ? "#B45309,#92400E" : "#374151,#1F2937"})`, borderRadius: 12, padding: 24, marginBottom: 24, color: "white" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <div>
+                                    <div style={{ fontSize: 13, fontWeight: 600, opacity: 0.85, marginBottom: 4 }}>CURRENT MATURITY PHASE</div>
+                                    <div style={{ fontSize: 40, fontWeight: 700, marginBottom: 4 }}>{maturity.phase === "Run" ? "🏆" : maturity.phase === "Walk" ? "🚶" : "🐣"} {maturity.phase}</div>
+                                    <div style={{ fontSize: 13, opacity: 0.8 }}>{(maturity.avg * 100).toFixed(0)}% overall · {maturity.caps.filter(c => c.score === 3).length} capabilities at Run level</div>
+                                </div>
+                                <div style={{ textAlign: "right" }}>
+                                    <div style={{ fontSize: 13, opacity: 0.8, marginBottom: 4 }}>Next phase: {maturity.phase === "Crawl" ? "Walk" : maturity.phase === "Walk" ? "Run" : "Sustained Run"}</div>
+                                    <div style={{ fontSize: 12, opacity: 0.7 }}>{maturity.caps.filter(c => c.score < 2).length} capabilities need improvement</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                            {maturity.caps.map(cap => {
+                                const barW = (cap.score / 3 * 100).toFixed(0);
+                                const color = cap.score === 3 ? "var(--green)" : cap.score === 2 ? "var(--amber)" : cap.score === 1 ? cloud.color : "var(--text3)";
+                                return (
+                                    <div key={cap.name} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 20px" }}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                                            <div>
+                                                <span style={{ fontSize: 14, fontWeight: 600 }}>{cap.name}</span>
+                                                <span style={{ fontSize: 12, color: "var(--text3)", marginLeft: 10 }}>{cap.desc}</span>
+                                            </div>
+                                            <span style={{ fontSize: 12, fontWeight: 700, color, background: `${color}15`, border: `1px solid ${color}40`, borderRadius: 20, padding: "2px 10px" }}>{cap.label}</span>
+                                        </div>
+                                        <div style={{ height: 6, background: "var(--surface2)", borderRadius: 3, overflow: "hidden" }}>
+                                            <div style={{ height: "100%", borderRadius: 3, background: color, width: `${barW}%`, transition: "width 0.5s" }} />
+                                        </div>
+                                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text3)", marginTop: 4 }}>
+                                            <span style={{ color: cap.score >= 1 ? color : "var(--text3)" }}>● Crawl</span>
+                                            <span style={{ color: cap.score >= 2 ? color : "var(--text3)" }}>● Walk</span>
+                                            <span style={{ color: cap.score >= 3 ? color : "var(--text3)" }}>● Run</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div style={{ marginTop: 16, fontSize: 11, color: "var(--text3)", lineHeight: 1.6 }}>
+                            ℹ️ Maturity is assessed from live scan data. Improve scores by: adding <code>monthly_history</code> to the backend response, increasing tagging coverage, actioning optimization workflow tasks, and enabling unit metrics.
+                        </div>
+                    </div>
+                )}
+
+                {/* ══ UNIT ECONOMICS ══ */}
+                {activeTab === "unit" && (
+                    <div>
+                        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Unit economics</div>
+                        <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 24 }}>Cost per business outcome — enter your monthly business metrics to calculate unit costs</div>
+                        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 24, marginBottom: 24 }}>
+                            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Business metrics (monthly)</div>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16 }}>
+                                {[
+                                    { key: "users", label: "Active users", placeholder: "e.g. 5000", icon: "👤" },
+                                    { key: "requests", label: "API requests / events", placeholder: "e.g. 1000000", icon: "🔁" },
+                                    { key: "deploys", label: "Deployments / releases", placeholder: "e.g. 40", icon: "🚀" },
+                                ].map(({ key, label, placeholder, icon }) => (
+                                    <div key={key}>
+                                        <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{icon} {label}</label>
+                                        <input type="number" placeholder={placeholder} value={unitMetrics[key]} onChange={e => setUnitMetrics(p => ({ ...p, [key]: e.target.value }))} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface2)", color: "var(--text)", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginBottom: 24 }}>
+                            {[
+                                { label: "Cost per active user", value: unitEconomics.perUser, icon: "👤", unit: "user", input: "users" },
+                                { label: "Cost per API request", value: unitEconomics.perRequest, icon: "🔁", unit: "request", input: "requests" },
+                                { label: "Cost per deployment", value: unitEconomics.perDeploy, icon: "🚀", unit: "deploy", input: "deploys" },
+                            ].map(({ label, value, icon, unit, input }) => (
+                                <div key={label} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, textAlign: "center" }}>
+                                    <div style={{ fontSize: 32, marginBottom: 8 }}>{icon}</div>
+                                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>{label}</div>
+                                    {value !== null ? (
+                                        <>
+                                            <div style={{ fontSize: 28, fontWeight: 700, color: cloud.color, marginBottom: 4, letterSpacing: "-0.03em" }}>{value < 0.01 ? `$${(value * 1000).toFixed(4)}/k` : fmt(value, 4)}</div>
+                                            <div style={{ fontSize: 11, color: "var(--text3)" }}>per {unit} · {fmt(total, 0)}/month total</div>
+                                        </>
+                                    ) : (
+                                        <div style={{ fontSize: 14, color: "var(--text3)" }}>Enter {input} above →</div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                        {(unitEconomics.perUser || unitEconomics.perRequest || unitEconomics.perDeploy) && (
+                            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 }}>
+                                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Benchmarks & insights</div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                                    {unitEconomics.perUser !== null && (
+                                        <div style={{ padding: "12px 16px", background: "var(--surface2)", borderRadius: 8, fontSize: 13, color: "var(--text2)" }}>
+                                            <strong style={{ color: "var(--text)" }}>Cost per user: {fmt(unitEconomics.perUser, 4)}</strong> — SaaS benchmark is typically $0.50–$5.00/user/month. {unitEconomics.perUser < 0.5 ? "✅ Well below benchmark." : unitEconomics.perUser < 5 ? "⚠️ Within range, but monitor growth." : "🔴 Above typical SaaS benchmark — review infrastructure efficiency."}
+                                        </div>
+                                    )}
+                                    {unitEconomics.perRequest !== null && (
+                                        <div style={{ padding: "12px 16px", background: "var(--surface2)", borderRadius: 8, fontSize: 13, color: "var(--text2)" }}>
+                                            <strong style={{ color: "var(--text)" }}>Cost per request: {unitEconomics.perRequest < 0.01 ? `$${(unitEconomics.perRequest * 1000000).toFixed(2)}/million` : fmt(unitEconomics.perRequest, 6)}</strong> — API platforms typically target &lt;$0.001/request. {unitEconomics.perRequest < 0.001 ? "✅ Efficient." : "⚠️ Consider caching, CDN, or Lambda right-sizing."}
+                                        </div>
+                                    )}
+                                    {unitEconomics.perDeploy !== null && (
+                                        <div style={{ padding: "12px 16px", background: "var(--surface2)", borderRadius: 8, fontSize: 13, color: "var(--text2)" }}>
+                                            <strong style={{ color: "var(--text)" }}>Cost per deployment: {fmt(unitEconomics.perDeploy, 2)}</strong> — High deployment costs suggest long-running test environments. Consider ephemeral environments and spot instances for CI/CD.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                        {!unitEconomics.perUser && !unitEconomics.perRequest && !unitEconomics.perDeploy && (
+                            <div style={{ background: "var(--surface)", border: "2px dashed var(--border)", borderRadius: 12, padding: 32, textAlign: "center", color: "var(--text3)" }}>
+                                <div style={{ fontSize: 24, marginBottom: 8 }}>📐</div>
+                                <div style={{ fontSize: 14 }}>Enter at least one metric above to calculate unit economics</div>
                             </div>
                         )}
                     </div>
@@ -4559,6 +4917,9 @@ const FinOpsSection = ({ awsData, selectedCloud, accountId: propAccountId }) => 
         </div>
     );
 };
+// ══════════════════════════════════════════════════════════════════════════════
+// END FINOPS SECTION v2
+// ══════════════════════════════════════════════════════════════════════════════
 
 // ── Dashboard Section ─────────────────────────────────────────────────────────────
 const DashboardSection = ({ awsData, accountId }) => {
@@ -5585,6 +5946,72 @@ const getNavItems = (cloud) => {
     ];
 };
 
+const LastScanBanner = ({ scanMeta, onRescan, cloud, onDismiss }) => {
+    const [dismissed, setDismissed] = useState(false);
+    if (!scanMeta || dismissed) return null;
+
+    const isAzure = cloud === "azure";
+    const color   = isAzure ? "#0089D6" : "#3b5bdb";
+    const bgColor = isAzure ? "#e6f2ff"  : "#eef2ff";
+    const border  = isAzure ? "#0089D630" : "rgba(59,91,219,0.2)";
+
+    const regionStr = scanMeta.region || "—";
+    const duration  = scanMeta.duration ? `${scanMeta.duration}s` : "";
+
+    return (
+        <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "10px 16px",
+            background: bgColor,
+            border: `1px solid ${border}`,
+            borderRadius: 10,
+            marginBottom: 20,
+            fontSize: 13,
+            gap: 12,
+        }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0 }} />
+                <span style={{ color, fontWeight: 600 }}>Showing last scan</span>
+                <span style={{ color: "var(--text3)" }}>
+                    {regionStr}{duration ? ` · ${duration}` : ""}
+                </span>
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+                <button
+                    onClick={onRescan}
+                    style={{
+                        padding: "4px 14px",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        borderRadius: 8,
+                        cursor: "pointer",
+                        background: color,
+                        color: "white",
+                        border: "none",
+                    }}
+                >
+                    ↺ Rescan
+                </button>
+                <button
+                    onClick={() => { setDismissed(true); if (onDismiss) onDismiss(); }}
+                    style={{
+                        padding: "4px 10px",
+                        fontSize: 12,
+                        borderRadius: 8,
+                        cursor: "pointer",
+                        background: "transparent",
+                        color: "var(--text3)",
+                        border: "1px solid var(--border)",
+                    }}
+                >
+                    ✕
+                </button>
+            </div>
+        </div>
+    );
+};
 
 const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, initialSection, onNewScan, onSwitchCloud, onSignOut, onScanRegions, onSetSelectedCloud, onClearData, isScanning, scanningRegion }) => {
     React.useEffect(() => {
@@ -5670,6 +6097,45 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
         return () => clearInterval(interval);
     }, [accountId]);
 
+    const getSavedScanData = (email) => {
+        try {
+            const raw = localStorage.getItem(`cloudops-awsData-${email}`);
+            if (!raw) return null;
+            return JSON.parse(raw);
+        } catch {
+            return null;
+        }
+    };
+
+    const getSavedScanMeta = (email) => {
+        try {
+            const raw = localStorage.getItem(`cloudops-scanMeta-${email}`);
+            if (!raw) return null;
+            return JSON.parse(raw);
+        } catch {
+            return null;
+        }
+    };
+
+// Helper: does the saved scan belong to this account?
+// We check identity fields inside the data. If they match, great.
+// If we can't tell (no identity stored), we still restore — it's the
+// user's own data and they just picked this account deliberately.
+    const savedScanBelongsToAccount = (savedData, accountKey) => {
+        if (!savedData) return false;
+        const id =
+            savedData?.identity?.account_id ||
+            savedData?.identity?.subscription_id ||
+            "";
+        if (!accountKey) return true; // can't compare, allow restore
+        if (!id) return true;         // scan has no identity stored, allow restore
+        return (
+            id === accountKey ||
+            id.startsWith(accountKey) ||
+            accountKey.startsWith(id)
+        );
+    };
+
     const renderContent = () => {
         // Inner app pages
         if (appSection === "cloudSelect") return <CloudSelectPage
@@ -5694,56 +6160,142 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
         if (appSection === "editCredentials") return <EditCredentialsPage userEmail={userEmail} onSave={navigateBack} onBack={navigateBack} />;
         if (appSection === "setupGuide") return <SetupGuidePage onContinue={() => navigateTo("scan")} onBack={navigateBack} />;
         if (appSection === "scan") return <ScanForm onCredentialsSaved={() => navigateTo("accountSelection")} />;
-        if (appSection === "accountSelection") return <AccountSelectionPage
-            onSelectAccount={async (acc) => {
-                const email = localStorage.getItem('cloudops-userEmail');
-                const token = localStorage.getItem('cloudops-auth-token');
-                try {
-                    const res = await fetch(`${BACKEND}/api/auth/get-account-credentials`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                        body: JSON.stringify({ accessKey: acc.accessKey }),
-                    });
-                    const json = await res.json();
-                    if (json.accessKey && json.secretKey) {
-                        localStorage.setItem(`cloudops-credentials-${email}`, JSON.stringify({
-                            accessKey: json.accessKey,
-                            secretKey: json.secretKey,
-                        }));
+        if (appSection === "accountSelection") return (
+            <AccountSelectionPage
+                onSelectAccount={async (acc) => {
+                    const email = localStorage.getItem('cloudops-userEmail');
+                    const token = localStorage.getItem('cloudops-auth-token');
+
+                    // 1. Fetch and store full credentials for selected account
+                    try {
+                        const res = await fetch(`${BACKEND}/api/auth/get-account-credentials`, {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Authorization": `Bearer ${token}`,
+                            },
+                            body: JSON.stringify({ accessKey: acc.accessKey }),
+                        });
+                        const json = await res.json();
+                        if (json.accessKey && json.secretKey) {
+                            localStorage.setItem(
+                                `cloudops-credentials-${email}`,
+                                JSON.stringify({ accessKey: json.accessKey, secretKey: json.secretKey })
+                            );
+                        }
+                    } catch (e) {
+                        console.error("Failed to fetch account credentials:", e);
                     }
-                } catch (e) {
-                    console.error("Failed to fetch account credentials:", e);
-                }
-                navigateTo("regionSelection");
-            }}
-            onAddNew={() => navigateTo("setupGuide")}
-            onBack={navigateBack}
-        />;
+
+                    // 2. Check if there is existing scan data for this account
+                    const savedData = getSavedScanData(email);
+                    const savedMeta = getSavedScanMeta(email);
+
+                    // Use acc.accountId for matching (may be "Unknown" for unscanned accounts)
+                    const accountKey = (acc.accountId && acc.accountId !== "Unknown")
+                        ? acc.accountId
+                        : acc.accessKey?.slice(0, 8) || "";
+
+                    if (savedData && savedScanBelongsToAccount(savedData, accountKey)) {
+                        // ✅ Restore last scan — skip region selection entirely
+                        setAwsData(savedData);
+                        if (savedMeta) setScanMeta(savedMeta);
+
+                        const restoredAccountId =
+                            savedData.identity?.account_id ||
+                            savedData.identity?.subscription_id ||
+                            acc.accountId ||
+                            "";
+
+                        setAccountId(restoredAccountId);
+                        localStorage.setItem('cloudops-accountId', restoredAccountId);
+
+                        // Also set the cloud type from the saved data
+                        const cloud = savedData.cloud === "azure" ? "azure" : "aws";
+                        onSetSelectedCloud(cloud);
+                        localStorage.setItem('cloudops-selectedCloud', cloud);
+
+                        // Go straight to the dashboard
+                        setAppSection("main");
+                        setSectionHistory([]);
+                        setSection("overview");
+                    } else {
+                        // ❌ No prior scan for this account — proceed to region selection
+                        navigateTo("regionSelection");
+                    }
+                }}
+                onAddNew={() => navigateTo("setupGuide")}
+                onBack={navigateBack}
+            />
+        );
         if (appSection === "azureSetupGuide") return <AzureSetupGuidePage
             onContinue={() => navigateTo("editCredentials")}
             onBack={navigateBack}
         />;
-        if (appSection === "azureAccountSelection") return <AzureAccountSelectionPage
-            onSelectAccount={async (acc) => {
-                const token = localStorage.getItem('cloudops-auth-token');
-                try {
-                    const res = await fetch(`${BACKEND}/api/azure/get-account-credentials`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                        body: JSON.stringify({ tenantId: acc.tenantId, subscriptionId: acc.subscriptionId }),
-                    });
-                    const creds = await res.json();
-                    if (creds.tenantId) {
-                        localStorage.setItem('cloudops-azure-selected', JSON.stringify(creds));
+        if (appSection === "azureAccountSelection") return (
+            <AzureAccountSelectionPage
+                onSelectAccount={async (acc) => {
+                    const email = localStorage.getItem('cloudops-userEmail');
+                    const token = localStorage.getItem('cloudops-auth-token');
+
+                    // 1. Fetch and store full Azure credentials for selected account
+                    try {
+                        const res = await fetch(`${BACKEND}/api/azure/get-account-credentials`, {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Authorization": `Bearer ${token}`,
+                            },
+                            body: JSON.stringify({
+                                tenantId: acc.tenantId,
+                                subscriptionId: acc.subscriptionId,
+                            }),
+                        });
+                        const creds = await res.json();
+                        if (creds.tenantId) {
+                            localStorage.setItem('cloudops-azure-selected', JSON.stringify(creds));
+                        }
+                    } catch (e) {
+                        console.error("Failed to fetch Azure credentials:", e);
                     }
-                } catch (e) {
-                    console.error("Failed to fetch Azure credentials:", e);
-                }
-                navigateTo("regionSelection");
-            }}
-            onAddNew={() => navigateTo("azureSetupGuide")}
-            onBack={navigateBack}
-        />;
+
+                    // 2. Check if there is existing scan data for this subscription
+                    const savedData = getSavedScanData(email);
+                    const savedMeta = getSavedScanMeta(email);
+
+                    const accountKey = acc.subscriptionId || "";
+
+                    const isAzureScan = savedData?.cloud === "azure";
+                    const matchesAccount = savedScanBelongsToAccount(savedData, accountKey);
+
+                    if (savedData && isAzureScan && matchesAccount) {
+                        // ✅ Restore last Azure scan — skip region selection entirely
+                        setAwsData(savedData);
+                        if (savedMeta) setScanMeta(savedMeta);
+
+                        const restoredAccountId =
+                            savedData.identity?.subscription_id ||
+                            acc.subscriptionId ||
+                            "";
+
+                        setAccountId(restoredAccountId);
+                        localStorage.setItem('cloudops-accountId', restoredAccountId);
+                        onSetSelectedCloud("azure");
+                        localStorage.setItem('cloudops-selectedCloud', "azure");
+
+                        // Go straight to the dashboard
+                        setAppSection("main");
+                        setSectionHistory([]);
+                        setSection("overview");
+                    } else {
+                        // ❌ No prior Azure scan — proceed to region selection
+                        navigateTo("regionSelection");
+                    }
+                }}
+                onAddNew={() => navigateTo("azureSetupGuide")}
+                onBack={navigateBack}
+            />
+        );
         if (appSection === "regionSelection") return <RegionSelectionPage
             onScanRegions={async (regions) => {
                 await onScanRegions(regions);
@@ -5832,7 +6384,7 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
     );
 
     return (
-        <div style={{ display: "flex", minHeight: "100vh", position: "relative" }}>
+        <div style={{ display: "flex", height: "100vh", overflow: "hidden", position: "relative" }}>
 
             {/* ── Far-left App Icon Strip — FIXED, never moves ── */}
             <div style={{
@@ -6083,6 +6635,14 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
                             </div>
                         </div>
                         <div style={{ flex: 1, padding: 24, overflowY: "auto" }}>
+                            {/* Show "last scan" banner when viewing restored scan data on the main dashboard */}
+                            {appSection === "main" && accountId && scanMeta && (
+                                <LastScanBanner
+                                    scanMeta={scanMeta}
+                                    cloud={selectedCloud}
+                                    onRescan={() => navigateTo("regionSelection")}
+                                />
+                            )}
                             {renderContent()}
                         </div>
                     </div>
@@ -6091,11 +6651,13 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
 
             {/* ── Other Apps (Coming Soon) ── */}
             {activeApp === "finops" ? (
-                <FinOpsSection
-                    awsData={awsData}
-                    selectedCloud={selectedCloud}
-                    accountId={accountId}
-                />
+                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                    <FinOpsSection
+                        awsData={awsData}
+                        selectedCloud={selectedCloud}
+                        accountId={accountId}
+                    />
+                </div>
             ) : activeApp !== "cloudops" && (() => {
                 const app = APP_ITEMS.find(a => a.id === activeApp);
                 const appDetails = {

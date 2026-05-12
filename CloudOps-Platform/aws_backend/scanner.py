@@ -1938,7 +1938,61 @@ def scan_costs(session):
     now = datetime.now(timezone.utc)
     start = now.replace(day=1).strftime("%Y-%m-%d")
     end   = now.strftime("%Y-%m-%d")
-    result = {"by_service": {}, "total": 0, "forecast": None}
+    result = {"by_service": {}, "total": 0, "forecast": None, "monthly_history": []}
+
+    try:
+        resp = ce.get_cost_and_usage(
+            TimePeriod={"Start": start, "End": end},
+            Granularity="MONTHLY",
+            Metrics=["UnblendedCost"],
+            GroupBy=[{"Type": "DIMENSION", "Key": "SERVICE"}]
+        )
+        for period in resp.get("ResultsByTime", []):
+            for g in period.get("Groups", []):
+                cost = float(g["Metrics"]["UnblendedCost"]["Amount"])
+                if cost > 0:
+                    result["by_service"][g["Keys"][0]] = round(cost, 4)
+        result["total"] = round(sum(result["by_service"].values()), 4)
+    except Exception as e:
+        result["error"] = str(e)
+
+    try:
+        if now.month == 12:
+            forecast_end = f"{now.year + 1}-01-01"
+        else:
+            forecast_end = now.replace(month=now.month + 1, day=1).strftime("%Y-%m-%d")
+        if end != start:
+            f_resp = ce.get_cost_forecast(
+                TimePeriod={"Start": end, "End": forecast_end},
+                Metric="UNBLENDED_COST",
+                Granularity="MONTHLY"
+            )
+            result["forecast"] = round(float(f_resp["Total"]["Amount"]), 2)
+    except Exception:
+        result["forecast"] = None
+
+    # ── Fetch last 6 months of monthly totals for regression forecasting ──
+    try:
+        month = now.month - 6
+        year = now.year
+        if month <= 0:
+            month += 12
+            year -= 1
+        history_start = f"{year}-{month:02d}-01"
+        history_end   = now.replace(day=1).strftime("%Y-%m-%d")
+        h_resp = ce.get_cost_and_usage(
+            TimePeriod={"Start": history_start, "End": history_end},
+            Granularity="MONTHLY",
+            Metrics=["UnblendedCost"]
+        )
+        result["monthly_history"] = [
+            round(float(p["Total"]["UnblendedCost"]["Amount"]), 2)
+            for p in h_resp.get("ResultsByTime", [])
+        ]
+    except Exception:
+        result["monthly_history"] = []
+
+    return result
 
     try:
         resp = ce.get_cost_and_usage(

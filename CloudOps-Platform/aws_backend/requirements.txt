@@ -26,3 +26,4 @@ azure-mgmt-dns
 azure-mgmt-authorization
 azure-mgmt-costmanagement
 
+python-dateutil
