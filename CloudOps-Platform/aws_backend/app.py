@@ -504,6 +504,114 @@ def delete_azure_credentials():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/scan-data/save", methods=["POST", "OPTIONS"])
+def save_scan_data():
+    if request.method == "OPTIONS":
+        return jsonify({}), 200
+
+    import jwt
+    from secure_auth import SECRET_KEY
+
+    token = request.headers.get('Authorization', '')
+    try:
+        token = token.split(' ')[1] if ' ' in token else token
+        token_data = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+        current_user = token_data['email']
+    except Exception:
+        return jsonify({'error': 'Token is invalid'}), 401
+
+    try:
+        data = request.get_json()
+        account_key  = data.get("accountKey", "").strip()
+        cloud        = data.get("cloud", "aws").strip()
+        account_name = data.get("accountName", "").strip()
+        scan_data    = data.get("scanData")
+        scan_meta    = data.get("scanMeta")
+
+        if not account_key or not scan_data:
+            return jsonify({"error": "accountKey and scanData are required"}), 400
+
+        scan_data_str = json.dumps(scan_data, default=json_serial)
+        scan_meta_str = json.dumps(scan_meta, default=json_serial)
+
+        conn = get_db()
+        cursor = conn.cursor()
+
+        # Check if exists
+        cursor.execute(
+            "SELECT COUNT(*) FROM scan_data WHERE email=? AND account_key=?",
+            current_user, account_key
+        )
+        exists = cursor.fetchone()[0] > 0
+
+        if exists:
+            cursor.execute(
+                """UPDATE scan_data
+                   SET scan_data=?, scan_meta=?, cloud=?, account_name=?, scanned_at=GETDATE()
+                   WHERE email=? AND account_key=?""",
+                scan_data_str, scan_meta_str, cloud, account_name,
+                current_user, account_key
+            )
+        else:
+            cursor.execute(
+                """INSERT INTO scan_data
+                   (email, account_key, cloud, account_name, scan_data, scan_meta)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                current_user, account_key, cloud, account_name,
+                scan_data_str, scan_meta_str
+            )
+
+        conn.commit()
+        conn.close()
+        return jsonify({"message": "Scan data saved successfully"})
+
+    except Exception as e:
+        print("ERROR in /api/scan-data/save:", str(e))
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/scan-data/<account_key>", methods=["GET", "OPTIONS"])
+def get_scan_data(account_key):
+    if request.method == "OPTIONS":
+        return jsonify({}), 200
+
+    import jwt
+    from secure_auth import SECRET_KEY
+
+    token = request.headers.get('Authorization', '')
+    try:
+        token = token.split(' ')[1] if ' ' in token else token
+        token_data = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+        current_user = token_data['email']
+    except Exception:
+        return jsonify({'error': 'Token is invalid'}), 401
+
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            """SELECT scan_data, scan_meta, cloud, account_name, scanned_at
+               FROM scan_data WHERE email=? AND account_key=?""",
+            current_user, account_key
+        )
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row:
+            return jsonify({"found": False}), 404
+
+        return jsonify({
+            "found": True,
+            "scanData":    json.loads(row[0]),
+            "scanMeta":    json.loads(row[1]) if row[1] else None,
+            "cloud":       row[2],
+            "accountName": row[3],
+            "scannedAt":   row[4].isoformat() if row[4] else None,
+        })
+
+    except Exception as e:
+        print("ERROR in /api/scan-data/get:", str(e))
+        return jsonify({"error": str(e)}), 500
 
 def azure_diagnose():
     result = {}

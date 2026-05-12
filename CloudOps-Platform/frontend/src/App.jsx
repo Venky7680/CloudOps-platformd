@@ -294,125 +294,407 @@ const LandingPage = ({ onLogin, onRegister, activePage, handleLogin, handleRegis
     ) : null;
 
     // ── Auth overlay ──────────────────────────────────────────────────────────
-    const AuthOverlay = () => (
-        <div style={{ position:"fixed", inset:0, zIndex:300, display:"flex", alignItems:"center", justifyContent:"center",
-            background: isDark ? "rgba(4,6,14,0.80)" : "rgba(60,70,160,0.15)", backdropFilter:"blur(22px)" }}
-             onClick={() => setAuthMode(null)}>
-            <div onClick={e => e.stopPropagation()} style={{
-                width:460, maxWidth:"calc(100vw - 32px)", borderRadius:24,
-                background:t.modalBg, border:`1px solid ${t.border}`,
-                boxShadow:t.modalShadow, overflow:"hidden",
-                animation:"slideUp 0.28s cubic-bezier(0.16,1,0.3,1)",
-            }}>
-                <div style={{ height:3, background:"linear-gradient(90deg,#6366f1,#8b5cf6,#06b6d4)" }} />
+    const AuthOverlay = React.memo(({
+                                        authMode,
+                                        setAuthMode,
+                                        isDark,
+                                        t,
 
-                <div style={{ padding:"34px 40px 40px" }}>
-                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:30 }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                            <div style={{ width:34, height:34, background:"linear-gradient(135deg,#6366f1,#4f46e5)", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 14px rgba(99,102,241,0.4)" }}>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+                                        loginEmail,
+                                        setLoginEmail,
+                                        loginPassword,
+                                        setLoginPassword,
+                                        loginError,
+                                        loginLoading,
+                                        rememberMe,
+                                        setRememberMe,
+                                        showLoginPass,
+                                        setShowLoginPass,
+
+                                        regEmail,
+                                        setRegEmail,
+                                        regPassword,
+                                        setRegPassword,
+                                        regConfirm,
+                                        setRegConfirm,
+                                        regError,
+                                        regLoading,
+                                        showRegPass,
+                                        setShowRegPass,
+                                        showRegConfirm,
+                                        setShowRegConfirm,
+
+                                        doLogin,
+                                        doRegister,
+                                    }) => {
+
+        const inp = {
+            width: "100%",
+            padding: "11px 14px",
+            borderRadius: 10,
+            background: t.inputBg,
+            border: `1.5px solid ${t.inputBorder}`,
+            color: t.text,
+            fontSize: 14,
+            outline: "none",
+            fontFamily: "'DM Sans',sans-serif",
+            boxSizing: "border-box",
+            transition: "border-color 0.2s",
+        };
+
+        const lbl = {
+            fontSize: 12,
+            fontWeight: 600,
+            color: t.textSub,
+            marginBottom: 6,
+            display: "block",
+            letterSpacing: "0.02em"
+        };
+
+        const ErrBox = ({ msg }) =>
+            msg ? (
+                <div
+                    style={{
+                        background: t.errBg,
+                        border: `1px solid ${t.errBorder}`,
+                        borderRadius: 9,
+                        padding: "10px 14px",
+                        fontSize: 13,
+                        color: "#ef4444",
+                        marginBottom: 16,
+                        display: "flex",
+                        gap: 8,
+                        alignItems: "center",
+                    }}
+                >
+                    <span>⚠</span> {msg}
+                </div>
+            ) : null;
+
+        return (
+            <div
+                style={{
+                    position: "fixed",
+                    inset: 0,
+                    zIndex: 300,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: isDark
+                        ? "rgba(4,6,14,0.80)"
+                        : "rgba(60,70,160,0.15)",
+                    backdropFilter: "blur(22px)",
+                }}
+                onClick={() => setAuthMode(null)}
+            >
+                <div
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                        width: 460,
+                        maxWidth: "calc(100vw - 32px)",
+                        borderRadius: 24,
+                        background: t.modalBg,
+                        border: `1px solid ${t.border}`,
+                        boxShadow: t.modalShadow,
+                        overflow: "hidden",
+                    }}
+                >
+                    <div
+                        style={{
+                            height: 3,
+                            background:
+                                "linear-gradient(90deg,#6366f1,#8b5cf6,#06b6d4)",
+                        }}
+                    />
+
+                    <div style={{ padding: "34px 40px 40px" }}>
+                        <div
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                marginBottom: 30,
+                            }}
+                        >
+                            <div
+                                style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 10,
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        width: 34,
+                                        height: 34,
+                                        background:
+                                            "linear-gradient(135deg,#6366f1,#4f46e5)",
+                                        borderRadius: 10,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                    }}
+                                >
+                                    ☁
+                                </div>
+
+                                <span
+                                    style={{
+                                        fontSize: 16,
+                                        fontWeight: 700,
+                                        color: t.text,
+                                    }}
+                                >
+                                CloudOps
+                            </span>
                             </div>
-                            <span style={{ fontSize:16, fontWeight:700, fontFamily:"'Syne',sans-serif", color:t.text }}>CloudOps</span>
+
+                            <button
+                                onClick={() => setAuthMode(null)}
+                                style={{
+                                    background: "none",
+                                    border: "none",
+                                    cursor: "pointer",
+                                    color: t.textFaint,
+                                    fontSize: 22,
+                                }}
+                            >
+                                ×
+                            </button>
                         </div>
-                        <button onClick={() => setAuthMode(null)} style={{ background:"none", border:"none", cursor:"pointer", color:t.textFaint, fontSize:22, lineHeight:1, padding:"4px 8px", borderRadius:6 }}>&#215;</button>
-                    </div>
 
-                    <div style={{ display:"flex", background:t.surface, border:`1px solid ${t.border}`, borderRadius:12, padding:4, marginBottom:28 }}>
-                        {['login','register'].map(mode => (
-                            <button key={mode} onClick={() => { setLoginError(''); setRegError(''); setAuthMode(mode); }}
-                                    style={{ flex:1, padding:"9px 0", borderRadius:9, fontSize:13.5, fontWeight:700, border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all 0.2s",
-                                        background: authMode===mode ? "linear-gradient(135deg,#6366f1,#4f46e5)" : "transparent",
-                                        color: authMode===mode ? "white" : t.textSub,
-                                        boxShadow: authMode===mode ? "0 4px 14px rgba(99,102,241,0.4)" : "none" }}>
-                                {mode === 'login' ? 'Sign In' : 'Create Account'}
-                            </button>
-                        ))}
-                    </div>
+                        <div
+                            style={{
+                                display: "flex",
+                                background: t.surface,
+                                border: `1px solid ${t.border}`,
+                                borderRadius: 12,
+                                padding: 4,
+                                marginBottom: 28,
+                            }}
+                        >
+                            {["login", "register"].map((mode) => (
+                                <button
+                                    key={mode}
+                                    onClick={() => setAuthMode(mode)}
+                                    style={{
+                                        flex: 1,
+                                        padding: "9px 0",
+                                        borderRadius: 9,
+                                        border: "none",
+                                        cursor: "pointer",
+                                        background:
+                                            authMode === mode
+                                                ? "linear-gradient(135deg,#6366f1,#4f46e5)"
+                                                : "transparent",
+                                        color:
+                                            authMode === mode
+                                                ? "white"
+                                                : t.textSub,
+                                        fontWeight: 700,
+                                    }}
+                                >
+                                    {mode === "login"
+                                        ? "Sign In"
+                                        : "Create Account"}
+                                </button>
+                            ))}
+                        </div>
 
-                    {authMode === 'login' ? (
-                        <>
-                            <h2 style={{ fontSize:24, fontWeight:800, fontFamily:"'Syne',sans-serif", color:t.text, margin:"0 0 4px", letterSpacing:"-0.03em" }}>Welcome back</h2>
-                            <p style={{ fontSize:13.5, color:t.textSub, margin:"0 0 24px" }}>Sign in to your cloud management platform</p>
-                            <ErrBox msg={loginError} />
-                            <div style={{ marginBottom:14 }}>
-                                <label style={lbl}>Email address</label>
-                                <input style={inp} type="email" placeholder="you@company.com"
-                                       value={loginEmail} onChange={e => setLoginEmail(e.target.value)}
-                                       onKeyDown={e => e.key==='Enter' && doLogin()} />
-                            </div>
-                            <div style={{ marginBottom:10 }}>
-                                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
-                                    <label style={{ ...lbl, marginBottom:0 }}>Password</label>
-                                    <span style={{ fontSize:12, color:"#6366f1", cursor:"pointer", fontWeight:600 }}>Forgot password?</span>
+                        {authMode === "login" ? (
+                            <>
+                                <h2
+                                    style={{
+                                        fontSize: 24,
+                                        fontWeight: 800,
+                                        color: t.text,
+                                        marginBottom: 10,
+                                    }}
+                                >
+                                    Welcome back
+                                </h2>
+
+                                <ErrBox msg={loginError} />
+
+                                <div style={{ marginBottom: 14 }}>
+                                    <label style={lbl}>Email</label>
+
+                                    <input
+                                        style={inp}
+                                        type="email"
+                                        placeholder="you@company.com"
+                                        value={loginEmail}
+                                        onChange={(e) =>
+                                            setLoginEmail(e.target.value)
+                                        }
+                                        autoComplete="email"
+                                    />
                                 </div>
-                                <div style={{ position:"relative" }}>
-                                    <input style={inp} type={showLoginPass?"text":"password"} placeholder="••••••••"
-                                           value={loginPassword} onChange={e => setLoginPassword(e.target.value)}
-                                           onKeyDown={e => e.key==='Enter' && doLogin()} />
-                                    <span onClick={() => setShowLoginPass(!showLoginPass)} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:t.textFaint, fontSize:11.5, fontWeight:700, userSelect:"none" }}>
-                                        {showLoginPass ? "HIDE" : "SHOW"}
-                                    </span>
+
+                                <div style={{ marginBottom: 18 }}>
+                                    <label style={lbl}>Password</label>
+
+                                    <input
+                                        style={inp}
+                                        type={
+                                            showLoginPass ? "text" : "password"
+                                        }
+                                        placeholder="••••••••"
+                                        value={loginPassword}
+                                        onChange={(e) =>
+                                            setLoginPassword(e.target.value)
+                                        }
+                                        onKeyDown={(e) =>
+                                            e.key === "Enter" && doLogin()
+                                        }
+                                        autoComplete="current-password"
+                                    />
                                 </div>
-                            </div>
-                            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:22 }}>
-                                <input type="checkbox" id="co-remember" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} style={{ cursor:"pointer", accentColor:"#6366f1" }} />
-                                <label htmlFor="co-remember" style={{ fontSize:13, color:t.textSub, cursor:"pointer" }}>Remember my email</label>
-                            </div>
-                            <button onClick={doLogin} disabled={loginLoading} style={{ width:"100%", padding:"13px", borderRadius:12, background:"linear-gradient(135deg,#6366f1,#4f46e5)", color:"white", fontFamily:"'DM Sans',sans-serif", fontSize:15, fontWeight:700, border:"none", cursor:loginLoading?"not-allowed":"pointer", boxShadow:"0 8px 24px rgba(99,102,241,0.4)", opacity:loginLoading?0.7:1, transition:"all 0.2s" }}>
-                                {loginLoading ? "Signing in…" : "Sign In →"}
-                            </button>
-                            <p style={{ textAlign:"center", marginTop:20, fontSize:13.5, color:t.textSub }}>
-                                New here?{" "}
-                                <span onClick={() => { setLoginError(''); setAuthMode('register'); }} style={{ color:"#6366f1", fontWeight:700, cursor:"pointer" }}>Create a free account</span>
-                            </p>
-                        </>
-                    ) : (
-                        <>
-                            <h2 style={{ fontSize:24, fontWeight:800, fontFamily:"'Syne',sans-serif", color:t.text, margin:"0 0 4px", letterSpacing:"-0.03em" }}>Get started free</h2>
-                            <p style={{ fontSize:13.5, color:t.textSub, margin:"0 0 24px" }}>Create your account — no credit card required</p>
-                            <ErrBox msg={regError} />
-                            <div style={{ marginBottom:13 }}>
-                                <label style={lbl}>Work email</label>
-                                <input style={inp} type="email" placeholder="you@company.com"
-                                       value={regEmail} onChange={e => setRegEmail(e.target.value)} />
-                            </div>
-                            <div style={{ marginBottom:13 }}>
-                                <label style={lbl}>Password <span style={{ fontWeight:400, color:t.textFaint }}>(min 6 chars)</span></label>
-                                <div style={{ position:"relative" }}>
-                                    <input style={inp} type={showRegPass?"text":"password"} placeholder="Create a strong password"
-                                           value={regPassword} onChange={e => setRegPassword(e.target.value)} />
-                                    <span onClick={() => setShowRegPass(!showRegPass)} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:t.textFaint, fontSize:11.5, fontWeight:700, userSelect:"none" }}>
-                                        {showRegPass ? "HIDE" : "SHOW"}
-                                    </span>
+
+                                <div
+                                    style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 8,
+                                        marginBottom: 22,
+                                    }}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={rememberMe}
+                                        onChange={(e) =>
+                                            setRememberMe(e.target.checked)
+                                        }
+                                    />
+
+                                    <label
+                                        style={{
+                                            fontSize: 13,
+                                            color: t.textSub,
+                                        }}
+                                    >
+                                        Remember email
+                                    </label>
                                 </div>
-                            </div>
-                            <div style={{ marginBottom:22 }}>
-                                <label style={lbl}>Confirm password</label>
-                                <div style={{ position:"relative" }}>
-                                    <input style={inp} type={showRegConfirm?"text":"password"} placeholder="Re-enter your password"
-                                           value={regConfirm} onChange={e => setRegConfirm(e.target.value)}
-                                           onKeyDown={e => e.key==='Enter' && doRegister()} />
-                                    <span onClick={() => setShowRegConfirm(!showRegConfirm)} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:t.textFaint, fontSize:11.5, fontWeight:700, userSelect:"none" }}>
-                                        {showRegConfirm ? "HIDE" : "SHOW"}
-                                    </span>
+
+                                <button
+                                    onClick={doLogin}
+                                    disabled={loginLoading}
+                                    style={{
+                                        width: "100%",
+                                        padding: "13px",
+                                        borderRadius: 12,
+                                        background:
+                                            "linear-gradient(135deg,#6366f1,#4f46e5)",
+                                        color: "white",
+                                        border: "none",
+                                        fontWeight: 700,
+                                        cursor: "pointer",
+                                    }}
+                                >
+                                    {loginLoading
+                                        ? "Signing in..."
+                                        : "Sign In"}
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <h2
+                                    style={{
+                                        fontSize: 24,
+                                        fontWeight: 800,
+                                        color: t.text,
+                                        marginBottom: 10,
+                                    }}
+                                >
+                                    Create Account
+                                </h2>
+
+                                <ErrBox msg={regError} />
+
+                                <div style={{ marginBottom: 14 }}>
+                                    <label style={lbl}>Email</label>
+
+                                    <input
+                                        style={inp}
+                                        type="email"
+                                        placeholder="you@company.com"
+                                        value={regEmail}
+                                        onChange={(e) =>
+                                            setRegEmail(e.target.value)
+                                        }
+                                        autoComplete="email"
+                                    />
                                 </div>
-                            </div>
-                            <button onClick={doRegister} disabled={regLoading} style={{ width:"100%", padding:"13px", borderRadius:12, background:"linear-gradient(135deg,#6366f1,#4f46e5)", color:"white", fontFamily:"'DM Sans',sans-serif", fontSize:15, fontWeight:700, border:"none", cursor:regLoading?"not-allowed":"pointer", boxShadow:"0 8px 24px rgba(99,102,241,0.4)", opacity:regLoading?0.7:1, transition:"all 0.2s" }}>
-                                {regLoading ? "Creating account…" : "Create Free Account →"}
-                            </button>
-                            <p style={{ fontSize:11, color:t.textFaint, textAlign:"center", marginTop:13, lineHeight:1.6 }}>
-                                By signing up you agree to our Terms of Service and Privacy Policy.
-                            </p>
-                            <p style={{ textAlign:"center", marginTop:8, fontSize:13.5, color:t.textSub }}>
-                                Already have an account?{" "}
-                                <span onClick={() => { setRegError(''); setAuthMode('login'); }} style={{ color:"#6366f1", fontWeight:700, cursor:"pointer" }}>Sign in</span>
-                            </p>
-                        </>
-                    )}
+
+                                <div style={{ marginBottom: 14 }}>
+                                    <label style={lbl}>Password</label>
+
+                                    <input
+                                        style={inp}
+                                        type={
+                                            showRegPass ? "text" : "password"
+                                        }
+                                        placeholder="Create password"
+                                        value={regPassword}
+                                        onChange={(e) =>
+                                            setRegPassword(e.target.value)
+                                        }
+                                        autoComplete="new-password"
+                                    />
+                                </div>
+
+                                <div style={{ marginBottom: 22 }}>
+                                    <label style={lbl}>
+                                        Confirm Password
+                                    </label>
+
+                                    <input
+                                        style={inp}
+                                        type={
+                                            showRegConfirm
+                                                ? "text"
+                                                : "password"
+                                        }
+                                        placeholder="Confirm password"
+                                        value={regConfirm}
+                                        onChange={(e) =>
+                                            setRegConfirm(e.target.value)
+                                        }
+                                        onKeyDown={(e) =>
+                                            e.key === "Enter" &&
+                                            doRegister()
+                                        }
+                                        autoComplete="new-password"
+                                    />
+                                </div>
+
+                                <button
+                                    onClick={doRegister}
+                                    disabled={regLoading}
+                                    style={{
+                                        width: "100%",
+                                        padding: "13px",
+                                        borderRadius: 12,
+                                        background:
+                                            "linear-gradient(135deg,#6366f1,#4f46e5)",
+                                        color: "white",
+                                        border: "none",
+                                        fontWeight: 700,
+                                        cursor: "pointer",
+                                    }}
+                                >
+                                    {regLoading
+                                        ? "Creating account..."
+                                        : "Create Account"}
+                                </button>
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
-        </div>
-    );
+        );
+    });
 
     // ── Main render ───────────────────────────────────────────────────────────
     return (
@@ -428,7 +710,41 @@ const LandingPage = ({ onLogin, onRegister, activePage, handleLogin, handleRegis
                 .pcard:hover { transform:translateY(-6px) !important; box-shadow:0 20px 56px rgba(0,0,0,0.22) !important; }
             `}</style>
 
-            {authMode && <AuthOverlay />}
+            {authMode && (
+                <AuthOverlay
+                    authMode={authMode}
+                    setAuthMode={setAuthMode}
+                    isDark={isDark}
+                    t={t}
+
+                    loginEmail={loginEmail}
+                    setLoginEmail={setLoginEmail}
+                    loginPassword={loginPassword}
+                    setLoginPassword={setLoginPassword}
+                    loginError={loginError}
+                    loginLoading={loginLoading}
+                    rememberMe={rememberMe}
+                    setRememberMe={setRememberMe}
+                    showLoginPass={showLoginPass}
+                    setShowLoginPass={setShowLoginPass}
+
+                    regEmail={regEmail}
+                    setRegEmail={setRegEmail}
+                    regPassword={regPassword}
+                    setRegPassword={setRegPassword}
+                    regConfirm={regConfirm}
+                    setRegConfirm={setRegConfirm}
+                    regError={regError}
+                    regLoading={regLoading}
+                    showRegPass={showRegPass}
+                    setShowRegPass={setShowRegPass}
+                    showRegConfirm={showRegConfirm}
+                    setShowRegConfirm={setShowRegConfirm}
+
+                    doLogin={doLogin}
+                    doRegister={doRegister}
+                />
+            )}
 
             <div className="glow-orb" style={{ width:700, height:700, background:"#6366f1", opacity:isDark?0.16:0.07, top:-280, left:-180 }} />
             <div className="glow-orb" style={{ width:500, height:500, background:"#8b5cf6", opacity:isDark?0.13:0.05, top:150, right:-160 }} />
@@ -6013,7 +6329,7 @@ const LastScanBanner = ({ scanMeta, onRescan, cloud, onDismiss }) => {
     );
 };
 
-const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, initialSection, onNewScan, onSwitchCloud, onSignOut, onScanRegions, onSetSelectedCloud, onClearData, isScanning, scanningRegion }) => {
+const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, initialSection, onNewScan, onSwitchCloud, onSignOut, onScanRegions, onSetSelectedCloud, onClearData, isScanning, scanningRegion , setAwsData, setScanMeta, setAccountId}) => {
     React.useEffect(() => {
         const id = "cloudops-topbar-styles";
         if (document.getElementById(id)) return;
@@ -6123,197 +6439,318 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
 // user's own data and they just picked this account deliberately.
     const savedScanBelongsToAccount = (savedData, accountKey) => {
         if (!savedData) return false;
-        const id =
-            savedData?.identity?.account_id ||
-            savedData?.identity?.subscription_id ||
-            "";
-        if (!accountKey) return true; // can't compare, allow restore
-        if (!id) return true;         // scan has no identity stored, allow restore
-        return (
-            id === accountKey ||
-            id.startsWith(accountKey) ||
-            accountKey.startsWith(id)
-        );
+        // If we have any saved scan data at all, restore it
+        // The user deliberately picked this account so trust the saved data
+        return true;
     };
 
     const renderContent = () => {
-        // Inner app pages
-        if (appSection === "cloudSelect") return <CloudSelectPage
-            onSelectCloud={(cloud) => {
-                if (cloud === "aws") {
-                    onSetSelectedCloud("aws");
-                    navigateTo("accountSelection");
-                } else if (cloud === "azure") {
-                    onSetSelectedCloud("azure");
-                    navigateTo("azureAccountSelection");
-                }
-            }}
-            onBack={() => {
-                if (accountId) {
-                    onSetSelectedCloud("aws");
-                }
-                navigateBack();
-            }}
-            onSignOut={onSignOut}
-            userEmail={userEmail}
-        />;
-        if (appSection === "editCredentials") return <EditCredentialsPage userEmail={userEmail} onSave={navigateBack} onBack={navigateBack} />;
-        if (appSection === "setupGuide") return <SetupGuidePage onContinue={() => navigateTo("scan")} onBack={navigateBack} />;
-        if (appSection === "scan") return <ScanForm onCredentialsSaved={() => navigateTo("accountSelection")} />;
-        if (appSection === "accountSelection") return (
-            <AccountSelectionPage
-                onSelectAccount={async (acc) => {
-                    const email = localStorage.getItem('cloudops-userEmail');
-                    const token = localStorage.getItem('cloudops-auth-token');
+        // ── Inner app pages ──────────────────────────────────────────────────────
 
-                    // 1. Fetch and store full credentials for selected account
-                    try {
-                        const res = await fetch(`${BACKEND}/api/auth/get-account-credentials`, {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                                "Authorization": `Bearer ${token}`,
-                            },
-                            body: JSON.stringify({ accessKey: acc.accessKey }),
-                        });
-                        const json = await res.json();
-                        if (json.accessKey && json.secretKey) {
-                            localStorage.setItem(
-                                `cloudops-credentials-${email}`,
-                                JSON.stringify({ accessKey: json.accessKey, secretKey: json.secretKey })
-                            );
-                        }
-                    } catch (e) {
-                        console.error("Failed to fetch account credentials:", e);
-                    }
-
-                    // 2. Check if there is existing scan data for this account
-                    const savedData = getSavedScanData(email);
-                    const savedMeta = getSavedScanMeta(email);
-
-                    // Use acc.accountId for matching (may be "Unknown" for unscanned accounts)
-                    const accountKey = (acc.accountId && acc.accountId !== "Unknown")
-                        ? acc.accountId
-                        : acc.accessKey?.slice(0, 8) || "";
-
-                    if (savedData && savedScanBelongsToAccount(savedData, accountKey)) {
-                        // ✅ Restore last scan — skip region selection entirely
-                        setAwsData(savedData);
-                        if (savedMeta) setScanMeta(savedMeta);
-
-                        const restoredAccountId =
-                            savedData.identity?.account_id ||
-                            savedData.identity?.subscription_id ||
-                            acc.accountId ||
-                            "";
-
-                        setAccountId(restoredAccountId);
-                        localStorage.setItem('cloudops-accountId', restoredAccountId);
-
-                        // Also set the cloud type from the saved data
-                        const cloud = savedData.cloud === "azure" ? "azure" : "aws";
-                        onSetSelectedCloud(cloud);
-                        localStorage.setItem('cloudops-selectedCloud', cloud);
-
-                        // Go straight to the dashboard
-                        setAppSection("main");
-                        setSectionHistory([]);
-                        setSection("overview");
-                    } else {
-                        // ❌ No prior scan for this account — proceed to region selection
-                        navigateTo("regionSelection");
-                    }
-                }}
-                onAddNew={() => navigateTo("setupGuide")}
-                onBack={navigateBack}
-            />
-        );
-        if (appSection === "azureSetupGuide") return <AzureSetupGuidePage
-            onContinue={() => navigateTo("editCredentials")}
-            onBack={navigateBack}
-        />;
-        if (appSection === "azureAccountSelection") return (
-            <AzureAccountSelectionPage
-                onSelectAccount={async (acc) => {
-                    const email = localStorage.getItem('cloudops-userEmail');
-                    const token = localStorage.getItem('cloudops-auth-token');
-
-                    // 1. Fetch and store full Azure credentials for selected account
-                    try {
-                        const res = await fetch(`${BACKEND}/api/azure/get-account-credentials`, {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                                "Authorization": `Bearer ${token}`,
-                            },
-                            body: JSON.stringify({
-                                tenantId: acc.tenantId,
-                                subscriptionId: acc.subscriptionId,
-                            }),
-                        });
-                        const creds = await res.json();
-                        if (creds.tenantId) {
-                            localStorage.setItem('cloudops-azure-selected', JSON.stringify(creds));
-                        }
-                    } catch (e) {
-                        console.error("Failed to fetch Azure credentials:", e);
-                    }
-
-                    // 2. Check if there is existing scan data for this subscription
-                    const savedData = getSavedScanData(email);
-                    const savedMeta = getSavedScanMeta(email);
-
-                    const accountKey = acc.subscriptionId || "";
-
-                    const isAzureScan = savedData?.cloud === "azure";
-                    const matchesAccount = savedScanBelongsToAccount(savedData, accountKey);
-
-                    if (savedData && isAzureScan && matchesAccount) {
-                        // ✅ Restore last Azure scan — skip region selection entirely
-                        setAwsData(savedData);
-                        if (savedMeta) setScanMeta(savedMeta);
-
-                        const restoredAccountId =
-                            savedData.identity?.subscription_id ||
-                            acc.subscriptionId ||
-                            "";
-
-                        setAccountId(restoredAccountId);
-                        localStorage.setItem('cloudops-accountId', restoredAccountId);
-                        onSetSelectedCloud("azure");
-                        localStorage.setItem('cloudops-selectedCloud', "azure");
-
-                        // Go straight to the dashboard
-                        setAppSection("main");
-                        setSectionHistory([]);
-                        setSection("overview");
-                    } else {
-                        // ❌ No prior Azure scan — proceed to region selection
-                        navigateTo("regionSelection");
-                    }
-                }}
-                onAddNew={() => navigateTo("azureSetupGuide")}
-                onBack={navigateBack}
-            />
-        );
-        if (appSection === "regionSelection") return <RegionSelectionPage
-            onScanRegions={async (regions) => {
-                await onScanRegions(regions);
-                setAppSection("main");
-                setSection("overview");
-            }}
-            onBack={navigateBack}
-            userEmail={userEmail}
-            selectedCloud={selectedCloud}
-        />;
-
-        // Main sections
-        if (!accountId && ["dashboard", "overview", "iam", "s3", "route53", "cloudfront", "regional"].includes(section)) {
+        if (appSection === "cloudSelect")
             return (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "60vh", gap: 16 }}>
+                <CloudSelectPage
+                    onSelectCloud={(cloud) => {
+                        if (cloud === "aws") {
+                            onSetSelectedCloud("aws");
+                            navigateTo("accountSelection");
+                        } else if (cloud === "azure") {
+                            onSetSelectedCloud("azure");
+                            navigateTo("azureAccountSelection");
+                        }
+                    }}
+                    onBack={() => {
+                        if (accountId) onSetSelectedCloud("aws");
+                        navigateBack();
+                    }}
+                    onSignOut={onSignOut}
+                    userEmail={userEmail}
+                />
+            );
+
+        if (appSection === "editCredentials")
+            return (
+                <EditCredentialsPage
+                    userEmail={userEmail}
+                    onSave={navigateBack}
+                    onBack={navigateBack}
+                />
+            );
+
+        if (appSection === "setupGuide")
+            return (
+                <SetupGuidePage
+                    onContinue={() => navigateTo("scan")}
+                    onBack={navigateBack}
+                />
+            );
+
+        if (appSection === "scan")
+            return (
+                <ScanForm
+                    onCredentialsSaved={() => navigateTo("accountSelection")}
+                />
+            );
+
+        // ── AWS account selection ─────────────────────────────────────────────────
+        if (appSection === "accountSelection")
+            return (
+                <AccountSelectionPage
+                    onSelectAccount={async (acc) => {
+                        const email = localStorage.getItem("cloudops-userEmail") || userEmail;
+                        const token = localStorage.getItem("cloudops-auth-token");
+                        const debugSavedData = getSavedScanData(email);
+                        console.log("AWS accountSelection — email:", email, "savedData:", !!debugSavedData);
+
+// 1. Fetch full credentials for the selected account
+                        try {
+                            const res = await fetch(
+                                `${BACKEND}/api/auth/get-account-credentials`,
+                                {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-Type": "application/json",
+                                        Authorization: `Bearer ${token}`,
+                                    },
+                                    body: JSON.stringify({ accessKey: acc.accessKey }),
+                                }
+                            );
+                            const json = await res.json();
+                            if (json.accessKey && json.secretKey) {
+                                localStorage.setItem(
+                                    `cloudops-credentials-${email}`,
+                                    JSON.stringify({
+                                        accessKey: json.accessKey,
+                                        secretKey: json.secretKey,
+                                    })
+                                );
+                            }
+                        } catch (e) {
+                            console.error("Failed to fetch account credentials:", e);
+                        }
+
+// 2. Try to restore a previous scan for this account
+                        // Build the account-specific key
+                        const accountKey =
+                            acc.accountId && acc.accountId !== "Unknown"
+                                ? acc.accountId
+                                : acc.accessKey || "";
+// (loading handled by account selection UI)
+
+// Try backend first, then localStorage cache
+                        let savedData = null;
+                        let savedMeta = null;
+
+                        try {
+                            const token = localStorage.getItem('cloudops-auth-token');
+                            const res = await fetch(`${BACKEND}/api/scan-data/${encodeURIComponent(accountKey)}`, {
+                                headers: { "Authorization": `Bearer ${token}` }
+                            });
+                            if (res.ok) {
+                                const json = await res.json();
+                                if (json.found) {
+                                    savedData = json.scanData;
+                                    savedMeta = json.scanMeta;
+                                }
+                            }
+                        } catch (e) {
+                            console.warn("Backend fetch failed, trying localStorage:", e);
+                            // Fallback to localStorage cache
+                            try {
+                                const raw = localStorage.getItem(`cloudops-awsData-${email}-${accountKey}`);
+                                if (raw) savedData = JSON.parse(raw);
+                                const rawMeta = localStorage.getItem(`cloudops-scanMeta-${email}-${accountKey}`);
+                                if (rawMeta) savedMeta = JSON.parse(rawMeta);
+                            } catch {}
+                        }
+// (loading handled by account selection UI)
+                        console.log("accountKey:", accountKey);
+                        console.log("new key exists:", !!localStorage.getItem(`cloudops-awsData-${email}-${accountKey}`));
+                        console.log("old key exists:", !!localStorage.getItem(`cloudops-awsData-${email}`));
+                        console.log("savedData:", !!savedData);
+
+
+
+                        if (savedData) {
+                            // ✅ Has scan for this account → load it and go to Dashboard
+                            setAwsData(savedData);
+                            if (savedMeta) setScanMeta(savedMeta);
+                            const restoredId = savedData.identity?.account_id || acc.accountId || "";
+                            setAccountId(restoredId);
+                            localStorage.setItem("cloudops-accountId", restoredId);
+                            onSetSelectedCloud("aws");
+                            localStorage.setItem("cloudops-selectedCloud", "aws");
+                            setSection("dashboard");
+                            setAppSection("main");
+                            setSectionHistory([]);
+                        } else {
+                            // ✅ No scan for this account yet → clear old data then go scan
+                            setAwsData(null);
+                            setScanMeta(null);
+                            setAccountId("");
+                            navigateTo("regionSelection");
+                        }
+                    }}
+                    onAddNew={() => navigateTo("setupGuide")}
+                    onBack={navigateBack}
+                />
+            );
+
+        if (appSection === "azureSetupGuide")
+            return (
+                <AzureSetupGuidePage
+                    onContinue={() => navigateTo("editCredentials")}
+                    onBack={navigateBack}
+                />
+            );
+
+        // ── Azure account selection ───────────────────────────────────────────────
+        if (appSection === "azureAccountSelection")
+            return (
+                <AzureAccountSelectionPage
+                    onSelectAccount={async (acc) => {
+                        const email = localStorage.getItem("cloudops-userEmail") || userEmail;
+                        const token = localStorage.getItem("cloudops-auth-token");
+                        // DEBUG
+                        const debugSavedData = getSavedScanData(email);
+                        console.log("Azure accountSelection — email:", email, "savedData:", !!debugSavedData);
+                        // 1. Fetch full Azure credentials for the selected account
+                        try {
+                            const res = await fetch(
+                                `${BACKEND}/api/azure/get-account-credentials`,
+                                {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-Type": "application/json",
+                                        Authorization: `Bearer ${token}`,
+                                    },
+                                    body: JSON.stringify({
+                                        tenantId: acc.tenantId,
+                                        subscriptionId: acc.subscriptionId,
+                                    }),
+                                }
+                            );
+                            const creds = await res.json();
+                            if (creds.tenantId) {
+                                localStorage.setItem(
+                                    "cloudops-azure-selected",
+                                    JSON.stringify(creds)
+                                );
+                            }
+                        } catch (e) {
+                            console.error("Failed to fetch Azure credentials:", e);
+                        }
+                        // 2. Try to restore a previous scan for this subscription
+                        const accountKey = acc.subscriptionId || "";
+
+
+                        let savedData = null;
+                        let savedMeta = null;
+
+                        try {
+                            const token = localStorage.getItem('cloudops-auth-token');
+                            const res = await fetch(`${BACKEND}/api/scan-data/${encodeURIComponent(accountKey)}`, {
+                                headers: { "Authorization": `Bearer ${token}` }
+                            });
+                            if (res.ok) {
+                                const json = await res.json();
+                                if (json.found) {
+                                    savedData = json.scanData;
+                                    savedMeta = json.scanMeta;
+                                }
+                            }
+                        } catch (e) {
+                            console.warn("Backend fetch failed, trying localStorage:", e);
+                            try {
+                                const raw = localStorage.getItem(`cloudops-awsData-${email}-${accountKey}`);
+                                if (raw) savedData = JSON.parse(raw);
+                                const rawMeta = localStorage.getItem(`cloudops-scanMeta-${email}-${accountKey}`);
+                                if (rawMeta) savedMeta = JSON.parse(rawMeta);
+                            } catch {}
+                        }
+
+
+                        if (savedData && savedData.cloud === "azure") {
+                            // ✅ Existing Azure scan → go straight to Dashboard
+                            setAwsData(savedData);
+                            if (savedMeta) setScanMeta(savedMeta);
+
+                            const restoredId =
+                                savedData.identity?.subscription_id ||
+                                acc.subscriptionId ||
+                                "";
+                            setAccountId(restoredId);
+                            localStorage.setItem("cloudops-accountId", restoredId);
+                            onSetSelectedCloud("azure");
+                            localStorage.setItem("cloudops-selectedCloud", "azure");
+
+                            setSection("dashboard");
+                            setAppSection("main");
+                            setSectionHistory([]);
+                        } else {
+                            // ✅ No prior scan → proceed to region selection
+                            navigateTo("regionSelection");
+                        }
+                    }}
+                    onAddNew={() => navigateTo("azureSetupGuide")}
+                    onBack={navigateBack}
+                />
+            );
+
+        // ── Region selection ──────────────────────────────────────────────────────
+        if (appSection === "regionSelection")
+            return (
+                <RegionSelectionPage
+                    onScanRegions={async (regions) => {
+                        // Call the parent scan handler (handles both AWS + Azure via prop)
+                        await onScanRegions(regions);
+
+                        // ✅ FIX: after scan completes, land on Dashboard and reset history
+                        setSection("dashboard");
+                        setAppSection("main");
+                        setSectionHistory([]);
+                    }}
+                    onBack={navigateBack}
+                    userEmail={userEmail}
+                    selectedCloud={selectedCloud}
+                />
+            );
+
+        // ── Main sections (Dashboard etc.) ────────────────────────────────────────
+        if (
+            !accountId &&
+            [
+                "dashboard",
+                "overview",
+                "iam",
+                "s3",
+                "route53",
+                "cloudfront",
+                "regional",
+            ].includes(section)
+        ) {
+            return (
+                <div
+                    style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        height: "60vh",
+                        gap: 16,
+                    }}
+                >
                     <div style={{ fontSize: 48 }}>☁</div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text)" }}>No cloud data yet</div>
-                    <div style={{ fontSize: 13, color: "var(--text2)", textAlign: "center" }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text)" }}>
+                        No cloud data yet
+                    </div>
+                    <div
+                        style={{
+                            fontSize: 13,
+                            color: "var(--text2)",
+                            textAlign: "center",
+                        }}
+                    >
                         Connect a cloud provider and run a scan to see your resources here.
                     </div>
                     <button
@@ -6326,19 +6763,49 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
                 </div>
             );
         }
+
+        // Guard — if no scan data yet, show empty state
+        if (!awsData && !["dashboard", "tickets", "alerts"].includes(section)) {
+            return (
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"60vh", gap:16 }}>
+                    <div style={{ fontSize:48 }}>☁</div>
+                    <div style={{ fontSize:18, fontWeight:700 }}>No scan data for this account</div>
+                    <div style={{ fontSize:13, color:"var(--text2)", textAlign:"center" }}>
+                        This account hasn't been scanned yet.
+                    </div>
+                    <button className="btn-primary" style={{ width:"auto", padding:"10px 24px" }}
+                            onClick={() => navigateTo("regionSelection")}>
+                        Scan Now →
+                    </button>
+                </div>
+            );
+        }
+
         switch (section) {
-            case "dashboard":   return <DashboardSection awsData={awsData} accountId={accountId} />;
-            case "overview":    return <Overview awsData={awsData} scanMeta={scanMeta} />;
-            case "iam":         return <IAMSection awsData={awsData} />;
-            case "s3":          return <S3Section awsData={awsData} />;
-            case "route53":     return <Route53Section awsData={awsData} />;
-            case "cloudfront":  return <CloudFrontSection awsData={awsData} />;
-            case "regional":    return <RegionalSection awsData={awsData} />;
-            case "resourcegroups": return <ResourceGroupsSection awsData={awsData} />;
-            case "allresources":   return <AllResourcesSection awsData={awsData} />;
-            case "cognitive":      return <CognitiveServicesSection awsData={awsData} />;
-            case "tickets":     return <TicketsSection accountId={accountId} />;
-            default:            return null;
+            case "dashboard":
+                return <DashboardSection awsData={awsData || {}} accountId={accountId} />;
+            case "overview":
+                return <Overview awsData={awsData || {}} scanMeta={scanMeta} />;
+            case "iam":
+                return <IAMSection awsData={awsData || {}} />;
+            case "s3":
+                return <S3Section awsData={awsData || {}} />;
+            case "route53":
+                return <Route53Section awsData={awsData || {}} />;
+            case "cloudfront":
+                return <CloudFrontSection awsData={awsData || {}} />;
+            case "regional":
+                return <RegionalSection awsData={awsData || {}} />;
+            case "resourcegroups":
+                return <ResourceGroupsSection awsData={awsData || {}} />;
+            case "allresources":
+                return <AllResourcesSection awsData={awsData || {}} />;
+            case "cognitive":
+                return <CognitiveServicesSection awsData={awsData || {}} />;
+            case "tickets":
+                return <TicketsSection accountId={accountId} />;
+            default:
+                return null;
         }
     };
 
@@ -6627,11 +7094,11 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
                                         </div>
                                     </div>
                                 )}
-                                <button className="btn btn-sm" onClick={() => { onSwitchCloud(); navigateTo("cloudSelect"); }} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <button className="btn btn-sm" onClick={() => { onSwitchCloud(); setSection("dashboard"); navigateTo("cloudSelect"); }} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
                                     Switch Provider
                                 </button>
-                                <button className="btn btn-sm" onClick={() => { onNewScan(); navigateTo("regionSelection"); }}>↺ New Scan</button>
+                                <button className="btn btn-sm" onClick={() => navigateTo("regionSelection")}>↺ New Scan</button>
                             </div>
                         </div>
                         <div style={{ flex: 1, padding: 24, overflowY: "auto" }}>
@@ -6653,7 +7120,7 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
             {activeApp === "finops" ? (
                 <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
                     <FinOpsSection
-                        awsData={awsData}
+                        awsData={awsData || {}}
                         selectedCloud={selectedCloud}
                         accountId={accountId}
                     />
@@ -6827,21 +7294,8 @@ export default function App() {
             }
 
             setUserEmail(email);
-
-            // Restore previous scan data for this user
-            try {
-                const savedData = localStorage.getItem(`cloudops-awsData-${email}`);
-                const savedMeta = localStorage.getItem(`cloudops-scanMeta-${email}`);
-                if (savedData) {
-                    const parsed = JSON.parse(savedData);
-                    setAwsData(parsed);
-                    if (savedMeta) setScanMeta(JSON.parse(savedMeta));
-                    if (parsed.identity?.account_id) setAccountId(parsed.identity.account_id);
-                    else if (parsed.identity?.subscription_id) setAccountId(parsed.identity.subscription_id);
-                }
-            } catch (e) { console.error("Failed to restore scan data:", e); }
-
             setPage("app");
+            setCloudAppSection("cloudSelect");
 
         } catch (error) {
             throw new Error("Invalid email or password. If you are a new user, please register.");
@@ -6867,6 +7321,7 @@ export default function App() {
             localStorage.setItem('cloudops-isNewUser', 'true');
             setUserEmail(email);
             setPage("app");
+            setCloudAppSection("cloudSelect");
         } catch (error) {
             throw new Error(error.message || "Registration failed.");
         }
@@ -6900,25 +7355,193 @@ export default function App() {
         setSelectedCloud("");
     };
 
-    // Async scan with polling — avoids Azure 230s timeout
+    // // Async scan with polling — avoids Azure 230s timeout
+    // const handleScanRegions = async (regions) => {
+    //     const start = Date.now();
+    //     const BACKEND = "https://cloudops-backend-venkatesh-cgfqcdffc8bhh9cd.eastus-01.azurewebsites.net";
+    //
+    //     setIsScanning(true);
+    //     setScanningRegion(regions.join(", "));
+    //
+    //     try {
+    //         const email = localStorage.getItem('cloudops-userEmail');
+    //         const savedCredentials = JSON.parse(localStorage.getItem(`cloudops-credentials-${email}`) || '{}');
+    //
+    //         if (!savedCredentials.accessKey || !savedCredentials.secretKey) {
+    //             localStorage.setItem('cloudops-isNewUser', 'true');
+    //             setPage("scan");
+    //             return;
+    //         }
+    //
+    //         // Step 1: Start the scan — backend returns job_id immediately
+    //         const startRes = await fetch(`${BACKEND}/api/scan`, {
+    //             method: "POST",
+    //             headers: { "Content-Type": "application/json" },
+    //             body: JSON.stringify({
+    //                 accessKey: savedCredentials.accessKey,
+    //                 secretKey: savedCredentials.secretKey,
+    //                 regions,
+    //             }),
+    //         });
+    //
+    //         const startJson = await startRes.json();
+    //         if (startJson.error) throw new Error(startJson.error);
+    //
+    //         const jobId = startJson.job_id;
+    //         if (!jobId) throw new Error("No job ID returned from server.");
+    //
+    //         // Step 2: Poll every 8 seconds until done (max 30 minutes)
+    //         const MAX_WAIT_MS = 30 * 60 * 1000;
+    //         const POLL_INTERVAL_MS = 8000;
+    //         const deadline = Date.now() + MAX_WAIT_MS;
+    //
+    //         while (Date.now() < deadline) {
+    //             await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+    //
+    //             let pollRes;
+    //             try {
+    //                 pollRes = await fetch(`${BACKEND}/api/scan/status/${jobId}`);
+    //             } catch (e) {
+    //                 continue; // network blip — keep polling
+    //             }
+    //
+    //             if (pollRes.status === 404) {
+    //                 continue; // job file cleaned up mid-poll — retry
+    //             }
+    //             if (pollRes.status === 500) {
+    //                 continue; // transient server error — retry
+    //             }
+    //
+    //             const text = await pollRes.text();
+    //             if (!text) continue;
+    //             let pollJson;
+    //             try { pollJson = JSON.parse(text); } catch (e) { continue; }
+    //
+    //             if (pollJson.status === "running") continue;
+    //
+    //             if (pollJson.status === "error") {
+    //                 throw new Error(pollJson.error || "Scan failed on server.");
+    //             }
+    //
+    //             if (pollJson.status === "done") {
+    //                 const json = pollJson.result;
+    //                 if (json.error) throw new Error(json.error);
+    //
+    //                 const meta = {
+    //                     duration: ((Date.now() - start) / 1000).toFixed(1),
+    //                     region: regions.join(', '),
+    //                 };
+    //
+    //                 if (email) {
+    //                     localStorage.setItem(`cloudops-awsData-${email}`, JSON.stringify(json));
+    //                     localStorage.setItem(`cloudops-scanMeta-${email}`, JSON.stringify(meta));
+    //                 }
+    //
+    //                 setAwsData(json);
+    //                 setScanMeta(meta);
+    //                 const aid = json.identity?.account_id || "";
+    //                 setAccountId(aid);
+    //                 localStorage.setItem('cloudops-accountId', aid);
+    //                 setIsScanning(false);
+    //                 setScanningRegion("");
+    //                 return;
+    //             }
+    //         }
+    //
+    //         throw new Error("Scan timed out after 30 minutes. Try selecting fewer regions.");
+    //
+    //     } catch (err) {
+    //         setIsScanning(false);
+    //         setScanningRegion("");
+    //         console.error(err);
+    //         throw new Error(err.message || "Failed to scan regions.");
+    //     }
+    // };
+    //
+    // // ── Azure scan with polling ────────────────────────────────────────────────
+    // const handleAzureScanRegions = async (regions) => {
+    //     const start = Date.now();
+    //     setIsScanning(true);
+    //     setScanningRegion(regions.join(", "));
+    //     try {
+    //         const token = localStorage.getItem('cloudops-auth-token');
+    //         const email = localStorage.getItem('cloudops-userEmail');
+    //         // Use selected Azure account stored during account selection
+    //         const storedCreds = JSON.parse(localStorage.getItem('cloudops-azure-selected') || '{}');
+    //         let creds = storedCreds;
+    //
+    //         // Fallback: fetch first account if nothing stored
+    //         if (!creds.tenantId) {
+    //             const listRes = await fetch(`${BACKEND}/api/azure/list-accounts`, {
+    //                 headers: { "Authorization": `Bearer ${token}` }
+    //             });
+    //             const listJson = await listRes.json();
+    //             const azureAccts = listJson.accounts || [];
+    //             if (!azureAccts.length) throw new Error("No Azure account saved. Please add one in Settings.");
+    //             const acct = azureAccts[0];
+    //             const fullCredsRes = await fetch(`${BACKEND}/api/azure/get-account-credentials`, {
+    //                 method: "POST",
+    //                 headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+    //                 body: JSON.stringify({ tenantId: acct.tenantId, subscriptionId: acct.subscriptionId }),
+    //             });
+    //             creds = await fullCredsRes.json();
+    //         }
+    //         if (!creds.tenantId) throw new Error("No Azure credentials found.");
+    //         const startRes = await fetch(`${BACKEND}/api/azure/scan`, {
+    //             method: "POST",
+    //             headers: { "Content-Type": "application/json" },
+    //             body: JSON.stringify({ tenantId: creds.tenantId, clientId: creds.clientId, clientSecret: creds.clientSecret, subscriptionId: creds.subscriptionId, regions }),
+    //         });
+    //         const startJson = await startRes.json();
+    //         if (startJson.error) throw new Error(startJson.error);
+    //         const jobId = startJson.job_id;
+    //         const deadline = Date.now() + 15 * 60 * 1000;
+    //         while (Date.now() < deadline) {
+    //             await new Promise(r => setTimeout(r, 5000));
+    //             const pollRes = await fetch(`${BACKEND}/api/azure/scan/status/${jobId}`);
+    //             if (pollRes.status === 500 || pollRes.status === 404) continue;
+    //             const pollJson = await pollRes.json();
+    //             if (pollJson.status === "running") continue;
+    //             if (pollJson.status === "error") throw new Error(pollJson.error || "Azure scan failed.");
+    //             if (pollJson.status === "done") {
+    //                 const json = pollJson.result;
+    //                 const meta = { duration: ((Date.now() - start) / 1000).toFixed(1), region: regions.join(', '), cloud: "azure" };
+    //                 if (email) { localStorage.setItem(`cloudops-awsData-${email}`, JSON.stringify(json)); localStorage.setItem(`cloudops-scanMeta-${email}`, JSON.stringify(meta)); }
+    //                 setAwsData(json); setScanMeta(meta);
+    //                 setAccountId(json.identity?.subscription_id || "");
+    //                 setIsScanning(false);
+    //                 setScanningRegion("");
+    //                 return;
+    //             }
+    //         }
+    //         throw new Error("Azure scan timed out. Try fewer regions.");
+    //     } catch (err) {
+    //         setIsScanning(false);
+    //         setScanningRegion("");
+    //         throw new Error(err.message || "Failed to scan Azure.");
+    //     }
+    // };
+
     const handleScanRegions = async (regions) => {
         const start = Date.now();
-        const BACKEND = "https://cloudops-backend-venkatesh-cgfqcdffc8bhh9cd.eastus-01.azurewebsites.net";
+        const BACKEND =
+            "https://cloudops-backend-venkatesh-cgfqcdffc8bhh9cd.eastus-01.azurewebsites.net";
 
         setIsScanning(true);
         setScanningRegion(regions.join(", "));
 
         try {
-            const email = localStorage.getItem('cloudops-userEmail');
-            const savedCredentials = JSON.parse(localStorage.getItem(`cloudops-credentials-${email}`) || '{}');
+            const email = localStorage.getItem("cloudops-userEmail");
+            const savedCredentials = JSON.parse(
+                localStorage.getItem(`cloudops-credentials-${email}`) || "{}"
+            );
 
             if (!savedCredentials.accessKey || !savedCredentials.secretKey) {
-                localStorage.setItem('cloudops-isNewUser', 'true');
+                localStorage.setItem("cloudops-isNewUser", "true");
                 setPage("scan");
                 return;
             }
 
-            // Step 1: Start the scan — backend returns job_id immediately
             const startRes = await fetch(`${BACKEND}/api/scan`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -6935,38 +7558,34 @@ export default function App() {
             const jobId = startJson.job_id;
             if (!jobId) throw new Error("No job ID returned from server.");
 
-            // Step 2: Poll every 8 seconds until done (max 30 minutes)
             const MAX_WAIT_MS = 30 * 60 * 1000;
             const POLL_INTERVAL_MS = 8000;
             const deadline = Date.now() + MAX_WAIT_MS;
 
             while (Date.now() < deadline) {
-                await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+                await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
 
                 let pollRes;
                 try {
                     pollRes = await fetch(`${BACKEND}/api/scan/status/${jobId}`);
                 } catch (e) {
-                    continue; // network blip — keep polling
+                    continue;
                 }
 
-                if (pollRes.status === 404) {
-                    continue; // job file cleaned up mid-poll — retry
-                }
-                if (pollRes.status === 500) {
-                    continue; // transient server error — retry
-                }
+                if (pollRes.status === 404 || pollRes.status === 500) continue;
 
                 const text = await pollRes.text();
                 if (!text) continue;
                 let pollJson;
-                try { pollJson = JSON.parse(text); } catch (e) { continue; }
+                try {
+                    pollJson = JSON.parse(text);
+                } catch (e) {
+                    continue;
+                }
 
                 if (pollJson.status === "running") continue;
-
-                if (pollJson.status === "error") {
+                if (pollJson.status === "error")
                     throw new Error(pollJson.error || "Scan failed on server.");
-                }
 
                 if (pollJson.status === "done") {
                     const json = pollJson.result;
@@ -6974,27 +7593,90 @@ export default function App() {
 
                     const meta = {
                         duration: ((Date.now() - start) / 1000).toFixed(1),
-                        region: regions.join(', '),
+                        region: regions.join(", "),
                     };
 
                     if (email) {
-                        localStorage.setItem(`cloudops-awsData-${email}`, JSON.stringify(json));
-                        localStorage.setItem(`cloudops-scanMeta-${email}`, JSON.stringify(meta));
+                        const aid = json.identity?.account_id || "";
+                        const savedCreds = JSON.parse(localStorage.getItem(`cloudops-credentials-${email}`) || "{}");
+                        const accessKey = savedCreds.accessKey || "";
+                        const scanKey = aid || accessKey || email;
+                        const token = localStorage.getItem('cloudops-auth-token');
+
+                        // Save to backend DB
+                        try {
+                            await fetch(`${BACKEND}/api/scan-data/save`, {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                    "Authorization": `Bearer ${token}`
+                                },
+                                body: JSON.stringify({
+                                    accountKey: scanKey,
+                                    cloud: "aws",
+                                    accountName: meta.accountName || "AWS Account",
+                                    scanData: json,
+                                    scanMeta: meta,
+                                }),
+                            });
+                        } catch (e) {
+                            console.warn("Failed to save scan to backend:", e);
+                        }
+
+                        // Also save under accessKey so lookup works regardless of which key is used
+                        if (accessKey && accessKey !== scanKey) {
+                            try {
+                                await fetch(`${BACKEND}/api/scan-data/save`, {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-Type": "application/json",
+                                        "Authorization": `Bearer ${token}`
+                                    },
+                                    body: JSON.stringify({
+                                        accountKey: accessKey,
+                                        cloud: "aws",
+                                        accountName: meta.accountName || "AWS Account",
+                                        scanData: json,
+                                        scanMeta: meta,
+                                    }),
+                                });
+                            } catch (e) {
+                                console.warn("Failed to save scan under accessKey:", e);
+                            }
+                        }
+
+                        // Also save to localStorage as cache fallback
+                        try {
+                            localStorage.setItem(`cloudops-awsData-${email}-${scanKey}`, JSON.stringify(json));
+                            localStorage.setItem(`cloudops-scanMeta-${email}-${scanKey}`, JSON.stringify(meta));
+                            if (accessKey && accessKey !== scanKey) {
+                                localStorage.setItem(`cloudops-awsData-${email}-${accessKey}`, JSON.stringify(json));
+                                localStorage.setItem(`cloudops-scanMeta-${email}-${accessKey}`, JSON.stringify(meta));
+                            }
+                            localStorage.setItem(`cloudops-lastAccount-${email}`, scanKey);
+                        } catch (e) {
+                            console.warn("localStorage full, skipping cache:", e);
+                        }
                     }
 
                     setAwsData(json);
                     setScanMeta(meta);
                     const aid = json.identity?.account_id || "";
                     setAccountId(aid);
-                    localStorage.setItem('cloudops-accountId', aid);
+                    localStorage.setItem("cloudops-accountId", aid);
                     setIsScanning(false);
                     setScanningRegion("");
+
+                    // ✅ FIX: ensure we are on the app page (covers first-time flow)
+                    localStorage.setItem('cloudops-section', 'dashboard');
+                    setPage("app");
                     return;
                 }
             }
 
-            throw new Error("Scan timed out after 30 minutes. Try selecting fewer regions.");
-
+            throw new Error(
+                "Scan timed out after 30 minutes. Try selecting fewer regions."
+            );
         } catch (err) {
             setIsScanning(false);
             setScanningRegion("");
@@ -7003,59 +7685,125 @@ export default function App() {
         }
     };
 
-    // ── Azure scan with polling ────────────────────────────────────────────────
     const handleAzureScanRegions = async (regions) => {
         const start = Date.now();
+        const BACKEND =
+            "https://cloudops-backend-venkatesh-cgfqcdffc8bhh9cd.eastus-01.azurewebsites.net";
+
         setIsScanning(true);
         setScanningRegion(regions.join(", "));
+
         try {
-            const token = localStorage.getItem('cloudops-auth-token');
-            const email = localStorage.getItem('cloudops-userEmail');
-            // Use selected Azure account stored during account selection
-            const storedCreds = JSON.parse(localStorage.getItem('cloudops-azure-selected') || '{}');
+            const token = localStorage.getItem("cloudops-auth-token");
+            const email = localStorage.getItem("cloudops-userEmail");
+            const storedCreds = JSON.parse(
+                localStorage.getItem("cloudops-azure-selected") || "{}"
+            );
             let creds = storedCreds;
 
-            // Fallback: fetch first account if nothing stored
             if (!creds.tenantId) {
                 const listRes = await fetch(`${BACKEND}/api/azure/list-accounts`, {
-                    headers: { "Authorization": `Bearer ${token}` }
+                    headers: { Authorization: `Bearer ${token}` },
                 });
                 const listJson = await listRes.json();
                 const azureAccts = listJson.accounts || [];
-                if (!azureAccts.length) throw new Error("No Azure account saved. Please add one in Settings.");
+                if (!azureAccts.length)
+                    throw new Error("No Azure account saved. Please add one in Settings.");
                 const acct = azureAccts[0];
-                const fullCredsRes = await fetch(`${BACKEND}/api/azure/get-account-credentials`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                    body: JSON.stringify({ tenantId: acct.tenantId, subscriptionId: acct.subscriptionId }),
-                });
+                const fullCredsRes = await fetch(
+                    `${BACKEND}/api/azure/get-account-credentials`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            Authorization: `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({
+                            tenantId: acct.tenantId,
+                            subscriptionId: acct.subscriptionId,
+                        }),
+                    }
+                );
                 creds = await fullCredsRes.json();
             }
+
             if (!creds.tenantId) throw new Error("No Azure credentials found.");
+
             const startRes = await fetch(`${BACKEND}/api/azure/scan`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ tenantId: creds.tenantId, clientId: creds.clientId, clientSecret: creds.clientSecret, subscriptionId: creds.subscriptionId, regions }),
+                body: JSON.stringify({
+                    tenantId: creds.tenantId,
+                    clientId: creds.clientId,
+                    clientSecret: creds.clientSecret,
+                    subscriptionId: creds.subscriptionId,
+                    regions,
+                }),
             });
             const startJson = await startRes.json();
             if (startJson.error) throw new Error(startJson.error);
             const jobId = startJson.job_id;
+
             const deadline = Date.now() + 15 * 60 * 1000;
             while (Date.now() < deadline) {
-                await new Promise(r => setTimeout(r, 5000));
-                const pollRes = await fetch(`${BACKEND}/api/azure/scan/status/${jobId}`);
+                await new Promise((r) => setTimeout(r, 5000));
+                const pollRes = await fetch(
+                    `${BACKEND}/api/azure/scan/status/${jobId}`
+                );
                 if (pollRes.status === 500 || pollRes.status === 404) continue;
                 const pollJson = await pollRes.json();
                 if (pollJson.status === "running") continue;
-                if (pollJson.status === "error") throw new Error(pollJson.error || "Azure scan failed.");
+                if (pollJson.status === "error")
+                    throw new Error(pollJson.error || "Azure scan failed.");
+
                 if (pollJson.status === "done") {
                     const json = pollJson.result;
-                    const meta = { duration: ((Date.now() - start) / 1000).toFixed(1), region: regions.join(', '), cloud: "azure" };
-                    if (email) { localStorage.setItem(`cloudops-awsData-${email}`, JSON.stringify(json)); localStorage.setItem(`cloudops-scanMeta-${email}`, JSON.stringify(meta)); }
-                    setAwsData(json); setScanMeta(meta);
+                    const meta = {
+                        duration: ((Date.now() - start) / 1000).toFixed(1),
+                        region: regions.join(", "),
+                        cloud: "azure",
+                    };
+                    if (email) {
+                        const sid = json.identity?.subscription_id || "";
+                        const scanKey = sid || email;
+                        const token = localStorage.getItem('cloudops-auth-token');
+
+                        // Save to backend DB
+                        try {
+                            await fetch(`${BACKEND}/api/scan-data/save`, {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                    "Authorization": `Bearer ${token}`
+                                },
+                                body: JSON.stringify({
+                                    accountKey: scanKey,
+                                    cloud: "azure",
+                                    accountName: meta.accountName || "Azure Account",
+                                    scanData: json,
+                                    scanMeta: meta,
+                                }),
+                            });
+                        } catch (e) {
+                            console.warn("Failed to save Azure scan to backend:", e);
+                        }
+
+                        // Also save to localStorage as cache fallback
+                        try {
+                            localStorage.setItem(`cloudops-awsData-${email}-${scanKey}`, JSON.stringify(json));
+                            localStorage.setItem(`cloudops-scanMeta-${email}-${scanKey}`, JSON.stringify(meta));
+                            localStorage.setItem(`cloudops-lastAccount-${email}`, scanKey);
+                        } catch (e) {
+                            console.warn("localStorage full, skipping cache:", e);
+                        }
+                    }
+                    setAwsData(json);
+                    setScanMeta(meta);
                     setAccountId(json.identity?.subscription_id || "");
                     setIsScanning(false);
                     setScanningRegion("");
+
+                    setPage("app");
                     return;
                 }
             }
@@ -7149,6 +7897,9 @@ export default function App() {
                         localStorage.removeItem('cloudops-accountId');
                         localStorage.removeItem('cloudops-selectedCloud');
                     }}
+                    setAwsData={setAwsData}
+                    setScanMeta={setScanMeta}
+                    setAccountId={setAccountId}
                 />
             )}
         </>
