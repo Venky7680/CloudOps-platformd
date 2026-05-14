@@ -714,6 +714,25 @@ def azure_diagnose():
 
     return jsonify(result)
 
+@app.route("/api/tenant/<slug>", methods=["GET"])
+def get_tenant(slug):
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT slug, company_name, logo_url, allowed_services FROM tenants WHERE slug=?", slug)
+        row = cursor.fetchone()
+        conn.close()
+        if not row:
+            return jsonify({"found": False}), 404
+        return jsonify({
+            "found": True,
+            "slug": row[0],
+            "companyName": row[1],
+            "logoUrl": row[2],
+            "allowedServices": (row[3] or 'cloudops,finops,secops,aiops,rfp').split(',')
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/health", methods=["GET"])
 def health():

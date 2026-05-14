@@ -32,6 +32,12 @@ def get_db():
     return pyodbc.connect(conn_str)
 
 
+def get_tenant_from_request():
+    """Extract tenant slug from request header or body."""
+    return request.headers.get('X-Tenant-Slug') or \
+           (request.get_json(silent=True) or {}).get('tenantSlug') or \
+           None
+
 def init_db():
     try:
         conn = get_db()
@@ -132,10 +138,11 @@ def token_required(f):
     return decorated
 
 
-def generate_token(email, role):
+def generate_token(email, role, tenant_slug=None):
     return jwt.encode({
         'email': email,
         'role': role,
+        'tenant_slug': tenant_slug,
         'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)
     }, SECRET_KEY)
 
@@ -148,46 +155,63 @@ def verify_token(token):
         return None
 
 
-def authenticate_user(email, password):
+def authenticate_user(email, password, tenant_slug=None):
     try:
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute("SELECT role, password_hash FROM users WHERE email = ?", email)
+        if tenant_slug:
+            cursor.execute("SELECT role, password_hash, tenant_slug FROM users WHERE email=? AND tenant_slug=?",
+                           email, tenant_slug)
+        else:
+            cursor.execute("SELECT role, password_hash, tenant_slug FROM users WHERE email=? AND (tenant_slug IS NULL OR tenant_slug='')",
+                           email)
         row = cursor.fetchone()
         if not row:
             conn.close()
             return None
-        role = row[0]
-        stored_hash = row[1].strip()
-        if not bcrypt.checkpw(password.encode('utf-8'), stored_hash.encode('utf-8')):
+        role, stored_hash, t_slug = row
+        if not bcrypt.checkpw(password.encode('utf-8'), stored_hash.strip().encode('utf-8')):
             conn.close()
             return None
-        cursor.execute("SELECT COUNT(*) FROM aws_credentials WHERE email = ?", email)
+        cursor.execute("SELECT COUNT(*) FROM aws_credentials WHERE email=? AND (tenant_slug=? OR tenant_slug IS NULL)",
+                       email, t_slug)
         has_creds = cursor.fetchone()[0] > 0
         conn.close()
-        return {'email': email, 'role': role, 'isNewUser': not has_creds}
+        return {'email': email, 'role': role, 'isNewUser': not has_creds, 'tenant_slug': t_slug}
     except Exception as e:
-            print(f"authenticate_user error: {type(e).__name__}: {e}")
-            return None
+        print(f"authenticate_user error: {e}")
+        return None
 
 
-def register_user(email, password):
+def register_user(email, password, tenant_slug=None):
     try:
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM users WHERE email = ?", email)
+
+        # Validate tenant if provided
+        if tenant_slug:
+            cursor.execute("SELECT COUNT(*) FROM tenants WHERE slug=?", tenant_slug)
+            if cursor.fetchone()[0] == 0:
+                conn.close()
+                return {'error': 'Invalid tenant'}
+
+        cursor.execute("SELECT COUNT(*) FROM users WHERE email=? AND (tenant_slug=? OR tenant_slug IS NULL)",
+                       email, tenant_slug)
         if cursor.fetchone()[0] > 0:
             conn.close()
             return None
+
         hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-        cursor.execute("INSERT INTO users (email, password_hash, role) VALUES (?, ?, 'user')", email, hashed)
+        cursor.execute(
+            "INSERT INTO users (email, password_hash, role, tenant_slug) VALUES (?, ?, 'user', ?)",
+            email, hashed, tenant_slug
+        )
         conn.commit()
         conn.close()
-        return {'email': email, 'role': 'user', 'isNewUser': True}
+        return {'email': email, 'role': 'user', 'isNewUser': True, 'tenant_slug': tenant_slug}
     except Exception as e:
         print(f"register_user error: {e}")
         return None
-
 
 def store_user_credentials(email, access_key, secret_key, account_name=None, account_id=None):
     try:
@@ -240,16 +264,17 @@ def add_auth_endpoints(app):
         try:
             data = request.get_json()
             email = data.get('email', '').strip().lower()
-            password = data.get('password', '').strip()
+            password = data.get('password', '')
+            tenant_slug = data.get('tenantSlug', None) or None
             if not email or not password:
                 return jsonify({'error': 'Email and password are required'}), 400
-            user_data = authenticate_user(email, password)
+            user_data = authenticate_user(email, password, tenant_slug)
             if not user_data:
                 return jsonify({'error': 'Invalid email or password'}), 401
-            token = generate_token(email, user_data['role'])
-            return jsonify({'token': token, 'email': email, 'role': user_data['role'], 'isNewUser': user_data['isNewUser']})
+            token = generate_token(email, user_data['role'], user_data.get('tenant_slug'))
+            return jsonify({'token': token, 'email': email, 'role': user_data['role'],
+                            'isNewUser': user_data['isNewUser'], 'tenantSlug': user_data.get('tenant_slug')})
         except Exception as e:
-            print("ERROR in /api/auth/login:", str(e))
             return jsonify({'error': 'Internal server error'}), 500
 
     @app.route("/api/auth/register", methods=["POST", "OPTIONS"])
@@ -260,17 +285,20 @@ def add_auth_endpoints(app):
             data = request.get_json()
             email = data.get('email', '').strip().lower()
             password = data.get('password', '').strip()
+            tenant_slug = data.get('tenantSlug', None)  # NEW
             if not email or not password:
                 return jsonify({'error': 'Email and password are required'}), 400
             if len(password) < 6:
                 return jsonify({'error': 'Password must be at least 6 characters'}), 400
-            user_data = register_user(email, password)
+            user_data = register_user(email, password, tenant_slug)
             if not user_data:
                 return jsonify({'error': 'Email already registered'}), 400
-            token = generate_token(email, user_data['role'])
-            return jsonify({'token': token, 'email': email, 'role': user_data['role'], 'isNewUser': True})
+            if isinstance(user_data, dict) and 'error' in user_data:
+                return jsonify({'error': user_data['error']}), 400
+            token = generate_token(email, user_data['role'], user_data.get('tenant_slug'))
+            return jsonify({'token': token, 'email': email, 'role': user_data['role'],
+                            'isNewUser': True, 'tenantSlug': user_data.get('tenant_slug')})
         except Exception as e:
-            print("ERROR in /api/auth/register:", str(e))
             return jsonify({'error': 'Internal server error'}), 500
 
     @app.route("/api/auth/store-credentials", methods=["POST", "OPTIONS"])
@@ -571,6 +599,174 @@ def add_auth_endpoints(app):
             if row:
                 return jsonify({'accessKey': row[0], 'secretKey': row[1]})
             return jsonify({'error': 'Account not found'}), 404
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route("/api/admin/clients", methods=["GET", "OPTIONS"])
+    def get_clients():
+        if request.method == "OPTIONS":
+            return jsonify({}), 200
+        token = request.headers.get('Authorization', '')
+        try:
+            token = token.split(' ')[1] if ' ' in token else token
+            token_data = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+            if token_data.get('role') != 'admin':
+                return jsonify({'error': 'Unauthorized'}), 403
+        except:
+            return jsonify({'error': 'Token is invalid'}), 401
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT slug, company_name, logo_url, allowed_services, created_at FROM tenants ORDER BY created_at DESC")
+            rows = cursor.fetchall()
+            conn.close()
+            clients = []
+            for row in rows:
+                clients.append({
+                    'slug': row[0],
+                    'companyName': row[1],
+                    'logoUrl': row[2],
+                    'allowedServices': row[3] or 'cloudops,finops,secops,aiops,rfp',
+                    'createdAt': row[4].isoformat() if row[4] else None,
+                })
+            return jsonify({'clients': clients})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+
+    @app.route("/api/admin/clients/create", methods=["POST", "OPTIONS"])
+    def create_client():
+        if request.method == "OPTIONS":
+            return jsonify({}), 200
+        token = request.headers.get('Authorization', '')
+        try:
+            token = token.split(' ')[1] if ' ' in token else token
+            token_data = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+            if token_data.get('role') != 'admin':
+                return jsonify({'error': 'Unauthorized'}), 403
+        except:
+            return jsonify({'error': 'Token is invalid'}), 401
+        try:
+            data = request.get_json()
+            slug = data.get('slug', '').strip().lower()
+            company_name = data.get('companyName', '').strip()
+            allowed_services = data.get('allowedServices', 'cloudops')
+            allowed_clouds = data.get('allowedClouds', 'aws')
+            logo_url = data.get('logoUrl', '').strip()
+            if not slug or not company_name:
+                return jsonify({'error': 'Slug and company name are required'}), 400
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM tenants WHERE slug=?", slug)
+            if cursor.fetchone()[0] > 0:
+                conn.close()
+                return jsonify({'error': 'Slug already exists'}), 400
+            cursor.execute(
+                "INSERT INTO tenants (slug, company_name, logo_url, allowed_services, allowed_clouds) VALUES (?, ?, ?, ?, ?)",
+                slug, company_name, logo_url, allowed_services, allowed_clouds
+            )
+            conn.commit()
+            conn.close()
+            return jsonify({'message': 'Client created successfully', 'slug': slug})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+
+    @app.route("/api/admin/clients/update", methods=["POST", "OPTIONS"])
+    def update_client():
+        if request.method == "OPTIONS":
+            return jsonify({}), 200
+        token = request.headers.get('Authorization', '')
+        try:
+            token = token.split(' ')[1] if ' ' in token else token
+            token_data = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+            if token_data.get('role') != 'admin':
+                return jsonify({'error': 'Unauthorized'}), 403
+        except:
+            return jsonify({'error': 'Token is invalid'}), 401
+        try:
+            data = request.get_json()
+            slug = data.get('slug', '').strip()
+            company_name = data.get('companyName', '').strip()
+            allowed_services = data.get('allowedServices', '')
+            allowed_clouds = data.get('allowedClouds', '')
+            logo_url = data.get('logoUrl', '').strip()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE tenants SET company_name=?, allowed_services=?, allowed_clouds=?, logo_url=? WHERE slug=?",
+                company_name, allowed_services, allowed_clouds, logo_url, slug
+            )
+            conn.commit()
+            conn.close()
+            return jsonify({'message': 'Client updated successfully'})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+
+    @app.route("/api/admin/clients/delete", methods=["POST", "OPTIONS"])
+    def delete_client():
+        if request.method == "OPTIONS":
+            return jsonify({}), 200
+        token = request.headers.get('Authorization', '')
+        try:
+            token = token.split(' ')[1] if ' ' in token else token
+            token_data = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+            if token_data.get('role') != 'admin':
+                return jsonify({'error': 'Unauthorized'}), 403
+        except:
+            return jsonify({'error': 'Token is invalid'}), 401
+        try:
+            data = request.get_json()
+            slug = data.get('slug', '').strip()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM tenants WHERE slug=?", slug)
+            conn.commit()
+            conn.close()
+            return jsonify({'message': 'Client deleted'})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+
+    @app.route("/api/admin/client-data/<slug>", methods=["GET", "OPTIONS"])
+    def get_client_data(slug):
+        if request.method == "OPTIONS":
+            return jsonify({}), 200
+        token = request.headers.get('Authorization', '')
+        try:
+            token = token.split(' ')[1] if ' ' in token else token
+            token_data = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+            if token_data.get('role') != 'admin':
+                return jsonify({'error': 'Unauthorized'}), 403
+        except:
+            return jsonify({'error': 'Token is invalid'}), 401
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            # Get all users of this tenant
+            cursor.execute("SELECT email FROM users WHERE tenant_slug=?", slug)
+            users = [row[0] for row in cursor.fetchall()]
+            # Get all scan data for this tenant's users
+            scan_records = []
+            for email in users:
+                cursor.execute(
+                    "SELECT account_key, cloud, account_name, scan_data, scan_meta, scanned_at FROM scan_data WHERE email=?",
+                    email
+                )
+                for row in cursor.fetchall():
+                    import json
+                    scan_records.append({
+                        'email': email,
+                        'accountKey': row[0],
+                        'cloud': row[1],
+                        'accountName': row[2],
+                        'scanData': json.loads(row[3]) if row[3] else None,
+                        'scanMeta': json.loads(row[4]) if row[4] else None,
+                        'scannedAt': row[5].isoformat() if row[5] else None,
+                    })
+            conn.close()
+            return jsonify({'users': users, 'scanRecords': scan_records})
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 

@@ -3,6 +3,13 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell, LineChart, L
 
 const BACKEND = "https://cloudops-backend-venkatesh-cgfqcdffc8bhh9cd.eastus-01.azurewebsites.net";
 
+// Multi-tenant: read slug from URL path
+const getTenantSlug = () => {
+    const slug = window.location.pathname.split('/')[1];
+    return slug && slug.length > 0 && slug !== 'index.html' ? slug : null;
+};
+const TENANT_SLUG = getTenantSlug();
+
 const REGIONS = [
     // US East
     "us-east-1", "us-east-2",
@@ -173,6 +180,408 @@ const Spinner = ({ size = 20 }) => (
     }} />
 );
 
+const AuthOverlay = React.memo(({
+                                    authMode,
+                                    setAuthMode,
+                                    isDark,
+                                    t,
+
+                                    loginEmail,
+                                    setLoginEmail,
+                                    loginPassword,
+                                    setLoginPassword,
+                                    loginError,
+                                    loginLoading,
+                                    rememberMe,
+                                    setRememberMe,
+                                    showLoginPass,
+                                    setShowLoginPass,
+
+                                    regEmail,
+                                    setRegEmail,
+                                    regPassword,
+                                    setRegPassword,
+                                    regConfirm,
+                                    setRegConfirm,
+                                    regError,
+                                    regLoading,
+                                    showRegPass,
+                                    setShowRegPass,
+                                    showRegConfirm,
+                                    setShowRegConfirm,
+
+                                    doLogin,
+                                    doRegister,
+                                }) => {
+
+    const inp = {
+        width: "100%",
+        padding: "11px 14px",
+        borderRadius: 10,
+        background: t.inputBg,
+        border: `1.5px solid ${t.inputBorder}`,
+        color: t.text,
+        fontSize: 14,
+        outline: "none",
+        fontFamily: "'DM Sans',sans-serif",
+        boxSizing: "border-box",
+        transition: "border-color 0.2s",
+    };
+
+    const lbl = {
+        fontSize: 12,
+        fontWeight: 600,
+        color: t.textSub,
+        marginBottom: 6,
+        display: "block",
+        letterSpacing: "0.02em"
+    };
+
+    const ErrBox = ({ msg }) =>
+        msg ? (
+            <div
+                style={{
+                    background: t.errBg,
+                    border: `1px solid ${t.errBorder}`,
+                    borderRadius: 9,
+                    padding: "10px 14px",
+                    fontSize: 13,
+                    color: "#ef4444",
+                    marginBottom: 16,
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "center",
+                }}
+            >
+                <span>⚠</span> {msg}
+            </div>
+        ) : null;
+
+    return (
+        <div
+            style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 300,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: isDark
+                    ? "rgba(4,6,14,0.80)"
+                    : "rgba(60,70,160,0.15)",
+                backdropFilter: "blur(22px)",
+            }}
+            onClick={() => setAuthMode(null)}
+        >
+            <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                    width: 460,
+                    maxWidth: "calc(100vw - 32px)",
+                    borderRadius: 24,
+                    background: t.modalBg,
+                    border: `1px solid ${t.border}`,
+                    boxShadow: t.modalShadow,
+                    overflow: "hidden",
+                }}
+            >
+                <div
+                    style={{
+                        height: 3,
+                        background:
+                            "linear-gradient(90deg,#6366f1,#8b5cf6,#06b6d4)",
+                    }}
+                />
+
+                <div style={{ padding: "34px 40px 40px" }}>
+                    <div
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            marginBottom: 30,
+                        }}
+                    >
+                        <div
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 10,
+                            }}
+                        >
+                            <div
+                                style={{
+                                    width: 34,
+                                    height: 34,
+                                    background:
+                                        "linear-gradient(135deg,#6366f1,#4f46e5)",
+                                    borderRadius: 10,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                }}
+                            >
+                                ☁
+                            </div>
+
+                            <span
+                                style={{
+                                    fontSize: 16,
+                                    fontWeight: 700,
+                                    color: t.text,
+                                }}
+                            >
+                                CloudOps
+                            </span>
+                        </div>
+
+                        <button
+                            onClick={() => setAuthMode(null)}
+                            style={{
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                color: t.textFaint,
+                                fontSize: 22,
+                            }}
+                        >
+                            ×
+                        </button>
+                    </div>
+
+                    <div
+                        style={{
+                            display: "flex",
+                            background: t.surface,
+                            border: `1px solid ${t.border}`,
+                            borderRadius: 12,
+                            padding: 4,
+                            marginBottom: 28,
+                        }}
+                    >
+                        {["login", "register"].map((mode) => (
+                            <button
+                                key={mode}
+                                onClick={() => setAuthMode(mode)}
+                                style={{
+                                    flex: 1,
+                                    padding: "9px 0",
+                                    borderRadius: 9,
+                                    border: "none",
+                                    cursor: "pointer",
+                                    background:
+                                        authMode === mode
+                                            ? "linear-gradient(135deg,#6366f1,#4f46e5)"
+                                            : "transparent",
+                                    color:
+                                        authMode === mode
+                                            ? "white"
+                                            : t.textSub,
+                                    fontWeight: 700,
+                                }}
+                            >
+                                {mode === "login"
+                                    ? "Sign In"
+                                    : "Create Account"}
+                            </button>
+                        ))}
+                    </div>
+
+                    {authMode === "login" ? (
+                        <>
+                            <h2
+                                style={{
+                                    fontSize: 24,
+                                    fontWeight: 800,
+                                    color: t.text,
+                                    marginBottom: 10,
+                                }}
+                            >
+                                Welcome back
+                            </h2>
+
+                            <ErrBox msg={loginError} />
+
+                            <div style={{ marginBottom: 14 }}>
+                                <label style={lbl}>Email</label>
+
+                                <input
+                                    style={inp}
+                                    type="email"
+                                    placeholder="you@company.com"
+                                    value={loginEmail}
+                                    onChange={(e) =>
+                                        setLoginEmail(e.target.value)
+                                    }
+                                    autoComplete="email"
+                                />
+                            </div>
+
+                            <div style={{ marginBottom: 18 }}>
+                                <label style={lbl}>Password</label>
+
+                                <input
+                                    style={inp}
+                                    type={
+                                        showLoginPass ? "text" : "password"
+                                    }
+                                    placeholder="••••••••"
+                                    value={loginPassword}
+                                    onChange={(e) =>
+                                        setLoginPassword(e.target.value)
+                                    }
+                                    onKeyDown={(e) =>
+                                        e.key === "Enter" && doLogin()
+                                    }
+                                    autoComplete="current-password"
+                                />
+                            </div>
+
+                            <div
+                                style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    marginBottom: 22,
+                                }}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={rememberMe}
+                                    onChange={(e) =>
+                                        setRememberMe(e.target.checked)
+                                    }
+                                />
+
+                                <label
+                                    style={{
+                                        fontSize: 13,
+                                        color: t.textSub,
+                                    }}
+                                >
+                                    Remember email
+                                </label>
+                            </div>
+
+                            <button
+                                onClick={doLogin}
+                                disabled={loginLoading}
+                                style={{
+                                    width: "100%",
+                                    padding: "13px",
+                                    borderRadius: 12,
+                                    background:
+                                        "linear-gradient(135deg,#6366f1,#4f46e5)",
+                                    color: "white",
+                                    border: "none",
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                }}
+                            >
+                                {loginLoading
+                                    ? "Signing in..."
+                                    : "Sign In"}
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <h2
+                                style={{
+                                    fontSize: 24,
+                                    fontWeight: 800,
+                                    color: t.text,
+                                    marginBottom: 10,
+                                }}
+                            >
+                                Create Account
+                            </h2>
+
+                            <ErrBox msg={regError} />
+
+                            <div style={{ marginBottom: 14 }}>
+                                <label style={lbl}>Email</label>
+
+                                <input
+                                    style={inp}
+                                    type="email"
+                                    placeholder="you@company.com"
+                                    value={regEmail}
+                                    onChange={(e) =>
+                                        setRegEmail(e.target.value)
+                                    }
+                                    autoComplete="email"
+                                />
+                            </div>
+
+                            <div style={{ marginBottom: 14 }}>
+                                <label style={lbl}>Password</label>
+
+                                <input
+                                    style={inp}
+                                    type={
+                                        showRegPass ? "text" : "password"
+                                    }
+                                    placeholder="Create password"
+                                    value={regPassword}
+                                    onChange={(e) =>
+                                        setRegPassword(e.target.value)
+                                    }
+                                    autoComplete="new-password"
+                                />
+                            </div>
+
+                            <div style={{ marginBottom: 22 }}>
+                                <label style={lbl}>
+                                    Confirm Password
+                                </label>
+
+                                <input
+                                    style={inp}
+                                    type={
+                                        showRegConfirm
+                                            ? "text"
+                                            : "password"
+                                    }
+                                    placeholder="Confirm password"
+                                    value={regConfirm}
+                                    onChange={(e) =>
+                                        setRegConfirm(e.target.value)
+                                    }
+                                    onKeyDown={(e) =>
+                                        e.key === "Enter" &&
+                                        doRegister()
+                                    }
+                                    autoComplete="new-password"
+                                />
+                            </div>
+
+                            <button
+                                onClick={doRegister}
+                                disabled={regLoading}
+                                style={{
+                                    width: "100%",
+                                    padding: "13px",
+                                    borderRadius: 12,
+                                    background:
+                                        "linear-gradient(135deg,#6366f1,#4f46e5)",
+                                    color: "white",
+                                    border: "none",
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                }}
+                            >
+                                {regLoading
+                                    ? "Creating account..."
+                                    : "Create Account"}
+                            </button>
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+});
+
 // ── Landing Page ───────────────────────────────────────────────────────────────
 const LandingPage = ({ onLogin, onRegister, activePage, handleLogin, handleRegister, setPage }) => {
 
@@ -294,407 +703,7 @@ const LandingPage = ({ onLogin, onRegister, activePage, handleLogin, handleRegis
     ) : null;
 
     // ── Auth overlay ──────────────────────────────────────────────────────────
-    const AuthOverlay = React.memo(({
-                                        authMode,
-                                        setAuthMode,
-                                        isDark,
-                                        t,
 
-                                        loginEmail,
-                                        setLoginEmail,
-                                        loginPassword,
-                                        setLoginPassword,
-                                        loginError,
-                                        loginLoading,
-                                        rememberMe,
-                                        setRememberMe,
-                                        showLoginPass,
-                                        setShowLoginPass,
-
-                                        regEmail,
-                                        setRegEmail,
-                                        regPassword,
-                                        setRegPassword,
-                                        regConfirm,
-                                        setRegConfirm,
-                                        regError,
-                                        regLoading,
-                                        showRegPass,
-                                        setShowRegPass,
-                                        showRegConfirm,
-                                        setShowRegConfirm,
-
-                                        doLogin,
-                                        doRegister,
-                                    }) => {
-
-        const inp = {
-            width: "100%",
-            padding: "11px 14px",
-            borderRadius: 10,
-            background: t.inputBg,
-            border: `1.5px solid ${t.inputBorder}`,
-            color: t.text,
-            fontSize: 14,
-            outline: "none",
-            fontFamily: "'DM Sans',sans-serif",
-            boxSizing: "border-box",
-            transition: "border-color 0.2s",
-        };
-
-        const lbl = {
-            fontSize: 12,
-            fontWeight: 600,
-            color: t.textSub,
-            marginBottom: 6,
-            display: "block",
-            letterSpacing: "0.02em"
-        };
-
-        const ErrBox = ({ msg }) =>
-            msg ? (
-                <div
-                    style={{
-                        background: t.errBg,
-                        border: `1px solid ${t.errBorder}`,
-                        borderRadius: 9,
-                        padding: "10px 14px",
-                        fontSize: 13,
-                        color: "#ef4444",
-                        marginBottom: 16,
-                        display: "flex",
-                        gap: 8,
-                        alignItems: "center",
-                    }}
-                >
-                    <span>⚠</span> {msg}
-                </div>
-            ) : null;
-
-        return (
-            <div
-                style={{
-                    position: "fixed",
-                    inset: 0,
-                    zIndex: 300,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: isDark
-                        ? "rgba(4,6,14,0.80)"
-                        : "rgba(60,70,160,0.15)",
-                    backdropFilter: "blur(22px)",
-                }}
-                onClick={() => setAuthMode(null)}
-            >
-                <div
-                    onClick={(e) => e.stopPropagation()}
-                    style={{
-                        width: 460,
-                        maxWidth: "calc(100vw - 32px)",
-                        borderRadius: 24,
-                        background: t.modalBg,
-                        border: `1px solid ${t.border}`,
-                        boxShadow: t.modalShadow,
-                        overflow: "hidden",
-                    }}
-                >
-                    <div
-                        style={{
-                            height: 3,
-                            background:
-                                "linear-gradient(90deg,#6366f1,#8b5cf6,#06b6d4)",
-                        }}
-                    />
-
-                    <div style={{ padding: "34px 40px 40px" }}>
-                        <div
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                marginBottom: 30,
-                            }}
-                        >
-                            <div
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 10,
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        width: 34,
-                                        height: 34,
-                                        background:
-                                            "linear-gradient(135deg,#6366f1,#4f46e5)",
-                                        borderRadius: 10,
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                    }}
-                                >
-                                    ☁
-                                </div>
-
-                                <span
-                                    style={{
-                                        fontSize: 16,
-                                        fontWeight: 700,
-                                        color: t.text,
-                                    }}
-                                >
-                                CloudOps
-                            </span>
-                            </div>
-
-                            <button
-                                onClick={() => setAuthMode(null)}
-                                style={{
-                                    background: "none",
-                                    border: "none",
-                                    cursor: "pointer",
-                                    color: t.textFaint,
-                                    fontSize: 22,
-                                }}
-                            >
-                                ×
-                            </button>
-                        </div>
-
-                        <div
-                            style={{
-                                display: "flex",
-                                background: t.surface,
-                                border: `1px solid ${t.border}`,
-                                borderRadius: 12,
-                                padding: 4,
-                                marginBottom: 28,
-                            }}
-                        >
-                            {["login", "register"].map((mode) => (
-                                <button
-                                    key={mode}
-                                    onClick={() => setAuthMode(mode)}
-                                    style={{
-                                        flex: 1,
-                                        padding: "9px 0",
-                                        borderRadius: 9,
-                                        border: "none",
-                                        cursor: "pointer",
-                                        background:
-                                            authMode === mode
-                                                ? "linear-gradient(135deg,#6366f1,#4f46e5)"
-                                                : "transparent",
-                                        color:
-                                            authMode === mode
-                                                ? "white"
-                                                : t.textSub,
-                                        fontWeight: 700,
-                                    }}
-                                >
-                                    {mode === "login"
-                                        ? "Sign In"
-                                        : "Create Account"}
-                                </button>
-                            ))}
-                        </div>
-
-                        {authMode === "login" ? (
-                            <>
-                                <h2
-                                    style={{
-                                        fontSize: 24,
-                                        fontWeight: 800,
-                                        color: t.text,
-                                        marginBottom: 10,
-                                    }}
-                                >
-                                    Welcome back
-                                </h2>
-
-                                <ErrBox msg={loginError} />
-
-                                <div style={{ marginBottom: 14 }}>
-                                    <label style={lbl}>Email</label>
-
-                                    <input
-                                        style={inp}
-                                        type="email"
-                                        placeholder="you@company.com"
-                                        value={loginEmail}
-                                        onChange={(e) =>
-                                            setLoginEmail(e.target.value)
-                                        }
-                                        autoComplete="email"
-                                    />
-                                </div>
-
-                                <div style={{ marginBottom: 18 }}>
-                                    <label style={lbl}>Password</label>
-
-                                    <input
-                                        style={inp}
-                                        type={
-                                            showLoginPass ? "text" : "password"
-                                        }
-                                        placeholder="••••••••"
-                                        value={loginPassword}
-                                        onChange={(e) =>
-                                            setLoginPassword(e.target.value)
-                                        }
-                                        onKeyDown={(e) =>
-                                            e.key === "Enter" && doLogin()
-                                        }
-                                        autoComplete="current-password"
-                                    />
-                                </div>
-
-                                <div
-                                    style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: 8,
-                                        marginBottom: 22,
-                                    }}
-                                >
-                                    <input
-                                        type="checkbox"
-                                        checked={rememberMe}
-                                        onChange={(e) =>
-                                            setRememberMe(e.target.checked)
-                                        }
-                                    />
-
-                                    <label
-                                        style={{
-                                            fontSize: 13,
-                                            color: t.textSub,
-                                        }}
-                                    >
-                                        Remember email
-                                    </label>
-                                </div>
-
-                                <button
-                                    onClick={doLogin}
-                                    disabled={loginLoading}
-                                    style={{
-                                        width: "100%",
-                                        padding: "13px",
-                                        borderRadius: 12,
-                                        background:
-                                            "linear-gradient(135deg,#6366f1,#4f46e5)",
-                                        color: "white",
-                                        border: "none",
-                                        fontWeight: 700,
-                                        cursor: "pointer",
-                                    }}
-                                >
-                                    {loginLoading
-                                        ? "Signing in..."
-                                        : "Sign In"}
-                                </button>
-                            </>
-                        ) : (
-                            <>
-                                <h2
-                                    style={{
-                                        fontSize: 24,
-                                        fontWeight: 800,
-                                        color: t.text,
-                                        marginBottom: 10,
-                                    }}
-                                >
-                                    Create Account
-                                </h2>
-
-                                <ErrBox msg={regError} />
-
-                                <div style={{ marginBottom: 14 }}>
-                                    <label style={lbl}>Email</label>
-
-                                    <input
-                                        style={inp}
-                                        type="email"
-                                        placeholder="you@company.com"
-                                        value={regEmail}
-                                        onChange={(e) =>
-                                            setRegEmail(e.target.value)
-                                        }
-                                        autoComplete="email"
-                                    />
-                                </div>
-
-                                <div style={{ marginBottom: 14 }}>
-                                    <label style={lbl}>Password</label>
-
-                                    <input
-                                        style={inp}
-                                        type={
-                                            showRegPass ? "text" : "password"
-                                        }
-                                        placeholder="Create password"
-                                        value={regPassword}
-                                        onChange={(e) =>
-                                            setRegPassword(e.target.value)
-                                        }
-                                        autoComplete="new-password"
-                                    />
-                                </div>
-
-                                <div style={{ marginBottom: 22 }}>
-                                    <label style={lbl}>
-                                        Confirm Password
-                                    </label>
-
-                                    <input
-                                        style={inp}
-                                        type={
-                                            showRegConfirm
-                                                ? "text"
-                                                : "password"
-                                        }
-                                        placeholder="Confirm password"
-                                        value={regConfirm}
-                                        onChange={(e) =>
-                                            setRegConfirm(e.target.value)
-                                        }
-                                        onKeyDown={(e) =>
-                                            e.key === "Enter" &&
-                                            doRegister()
-                                        }
-                                        autoComplete="new-password"
-                                    />
-                                </div>
-
-                                <button
-                                    onClick={doRegister}
-                                    disabled={regLoading}
-                                    style={{
-                                        width: "100%",
-                                        padding: "13px",
-                                        borderRadius: 12,
-                                        background:
-                                            "linear-gradient(135deg,#6366f1,#4f46e5)",
-                                        color: "white",
-                                        border: "none",
-                                        fontWeight: 700,
-                                        cursor: "pointer",
-                                    }}
-                                >
-                                    {regLoading
-                                        ? "Creating account..."
-                                        : "Create Account"}
-                                </button>
-                            </>
-                        )}
-                    </div>
-                </div>
-            </div>
-        );
-    });
 
     // ── Main render ───────────────────────────────────────────────────────────
     return (
@@ -6271,7 +6280,7 @@ const LastScanBanner = ({ scanMeta, onRescan, cloud, onDismiss }) => {
     const bgColor = isAzure ? "#e6f2ff"  : "#eef2ff";
     const border  = isAzure ? "#0089D630" : "rgba(59,91,219,0.2)";
 
-    const regionStr = scanMeta.region || "—";
+    const regionStr = formatRegionLabel(scanMeta?.region) || "—";
     const duration  = scanMeta.duration ? `${scanMeta.duration}s` : "";
 
     return (
@@ -6329,7 +6338,15 @@ const LastScanBanner = ({ scanMeta, onRescan, cloud, onDismiss }) => {
     );
 };
 
-const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, initialSection, onNewScan, onSwitchCloud, onSignOut, onScanRegions, onSetSelectedCloud, onClearData, isScanning, scanningRegion , setAwsData, setScanMeta, setAccountId}) => {
+const formatRegionLabel = (regionStr) => {
+    if (!regionStr) return "";
+    const parts = regionStr.split(", ").filter(Boolean);
+    if (parts.length === 1) return parts[0];
+    if (parts.length >= 18) return "All regions";
+    return `${parts.length} regions`;
+};
+
+const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, initialSection, onNewScan, onSwitchCloud, onSignOut, onScanRegions, onSetSelectedCloud, onClearData, isScanning, scanningRegion , setAwsData, setScanMeta, setAccountId,tenantServices}) => {
     React.useEffect(() => {
         const id = "cloudops-topbar-styles";
         if (document.getElementById(id)) return;
@@ -6814,7 +6831,7 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
 
     const APP_ITEMS = [
         {
-            id: "cloudops", label: "Cloud", color: "#6366f1",
+            id: "cloudops", label: "CloudOps", color: "#6366f1",
             icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
         },
         {
@@ -6833,7 +6850,15 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
             id: "rfp", label: "RFP", color: "#f59e0b",
             icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
         },
+        {
+            id: "templates", label: "Templates", color: "#06b6d4",
+            icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+        },
     ];
+
+    const visibleApps = APP_ITEMS.filter(app =>
+        !tenantServices || tenantServices.includes(app.id) || app.id === 'cloudops'
+    );
 
     const ComingSoonContent = ({ appName, color, description }) => (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 16, padding: 40 }}>
@@ -6855,7 +6880,7 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
 
             {/* ── Far-left App Icon Strip — FIXED, never moves ── */}
             <div style={{
-                width: 56,
+                width: 68,
                 background: "var(--surface)",
                 borderRight: "1px solid var(--border)",
                 display: "flex", flexDirection: "column",
@@ -6877,7 +6902,7 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
                 <div style={{ width: 28, height: 1, background: "var(--border)", marginBottom: 8 }} /> {/* was: #1e2a3a */}
 
                 {/* App icons */}
-                {APP_ITEMS.map((app) => {
+                {visibleApps.map((app) => {
                     const isActive = activeApp === app.id;
                     return (
                         <div
@@ -6948,7 +6973,7 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
             </div>
 
             {/* Spacer to offset fixed 56px strip — pushes all content right */}
-            <div style={{ width: 56, flexShrink: 0 }} />
+            <div style={{ width: 68, flexShrink: 0 }} />
 
             {/* ── CloudOps App (nav sidebar + main content) ── */}
             {activeApp === "cloudops" && (
@@ -6977,10 +7002,38 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
                         </div>
 
                         {/* Account ID */}
-                        <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)" }}> {/* was: #243049 */}
-                            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3 }}>Account ID</div> {/* was: #64748b */}
-                            <div style={{ fontFamily: "monospace", fontSize: 11, color: "var(--text2)" }}>{accountId || "Not connected"}</div> {/* was: #94a3b8 */}
-                            {scanMeta && <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 2 }}>{scanMeta.duration}s · {scanMeta.region}</div>} {/* was: #64748b */}
+
+                        <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", background: "var(--surface2)", margin: "0" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                                <div style={{ width: 32, height: 32, borderRadius: 8, background: selectedCloud === "azure" ? "#e6f2ff" : "#fff3e0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
+                                    {selectedCloud === "azure" ? "⬡" : "☁"}
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", marginBottom: 1 }}>
+                                        {selectedCloud === "azure" ? "Azure" : "AWS"}
+                                    </div>
+                                    <div style={{ fontSize: 10, color: accountId ? "var(--green)" : "var(--text3)", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                                        <div style={{ width: 5, height: 5, borderRadius: "50%", background: accountId ? "var(--green)" : "var(--text3)", flexShrink: 0 }} />
+                                        {accountId ? "Connected" : "Not connected"}
+                                    </div>
+                                </div>
+                            </div>
+                            {accountId && (
+                                <div style={{ background: "var(--surface)", borderRadius: 6, padding: "6px 10px", border: "1px solid var(--border)" }}>
+                                    <div style={{ fontSize: 9, fontWeight: 700, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>Account ID</div>
+                                    <div style={{ fontFamily: "monospace", fontSize: 10, color: "var(--text2)", wordBreak: "break-all", lineHeight: 1.4 }}>{accountId}</div>
+                                </div>
+                            )}
+                            {scanMeta && (
+                                <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+            <span style={{ fontSize: 9, fontWeight: 600, background: "var(--accent-bg)", color: "var(--accent)", borderRadius: 4, padding: "2px 6px" }}>
+                {formatRegionLabel(scanMeta?.region)}
+            </span>
+                                    <span style={{ fontSize: 9, fontWeight: 600, background: "var(--surface)", color: "var(--text3)", borderRadius: 4, padding: "2px 6px", border: "1px solid var(--border)" }}>
+                {scanMeta.duration}s
+            </span>
+                                </div>
+                            )}
                         </div>
 
                         {/* Nav items */}
@@ -7057,11 +7110,27 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
                     {/* Main content */}
                     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
                         <div style={{ height: 52, background: "var(--surface)", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", padding: "0 24px", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 50 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                                 {appSection !== "main" && (
                                     <button onClick={navigateBack} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 6, background: "var(--surface2)", border: "1px solid var(--border)", cursor: "pointer", color: "var(--text2)" }}>
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                                     </button>
+                                )}
+                                {accountId && appSection === "main" && (
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                        <div style={{ width: 28, height: 28, borderRadius: 8, background: selectedCloud === "azure" ? "#e6f2ff" : "#fff3e0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
+                                            {selectedCloud === "azure" ? "⬡" : "☁"}
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", lineHeight: 1.2 }}>
+                                                {awsData?.identity?.subscription_name || scanMeta?.accountName || (selectedCloud === "azure" ? "Azure Account" : "AWS Account")}
+                                            </div>
+                                            <div style={{ fontSize: 10, color: "var(--text3)", display: "flex", alignItems: "center", gap: 4 }}>
+                                                <div style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--green)" }} />
+                                                {selectedCloud === "azure" ? "Azure" : "AWS"} · {formatRegionLabel(scanMeta?.region)} · {scanMeta?.duration}s
+                                            </div>
+                                        </div>
+                                    </div>
                                 )}
                                 {isScanning && (
                                     <div style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 12px", background: selectedCloud === "azure" ? "#e6f2ff" : "var(--accent-bg)", border: `1px solid ${selectedCloud === "azure" ? "#0089D650" : "var(--accent-border)"}`, borderRadius:20, fontSize:12, fontWeight:600, color: selectedCloud === "azure" ? "#0089D6" : "var(--accent)", animation:"pulse 1.5s ease-in-out infinite" }}>
@@ -7071,29 +7140,6 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
                                 )}
                             </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                {accountId && (
-                                    <div style={{ position:"relative" }} className="account-chip-wrap">
-                                        <div style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 12px", background: selectedCloud === "azure" ? "#e6f2ff" : "var(--green-bg)", border:`1px solid ${selectedCloud === "azure" ? "#0089D640" : "var(--green-border, #a7f3d0)"}`, borderRadius:20, fontSize:12, fontWeight:600, color: selectedCloud === "azure" ? "#0089D6" : "var(--green)", cursor:"default", userSelect:"none" }}>
-                                            <div style={{ width:6, height:6, borderRadius:"50%", background: selectedCloud === "azure" ? "#0089D6" : "var(--green)" }} />
-                                            {awsData?.identity?.subscription_name
-                                                ? awsData.identity.subscription_name.length > 24
-                                                    ? awsData.identity.subscription_name.slice(0,24)+"…"
-                                                    : awsData.identity.subscription_name
-                                                : scanMeta?.accountName
-                                                    ? scanMeta.accountName
-                                                    : selectedCloud === "azure"
-                                                        ? "Azure Account"
-                                                        : "AWS Account"
-                                            }
-                                        </div>
-                                        <div style={{ position:"absolute", top:"calc(100% + 8px)", right:0, background:"var(--surface)", border:"1px solid var(--border)", borderRadius:8, padding:"8px 12px", fontSize:11, whiteSpace:"nowrap", boxShadow:"0 4px 16px rgba(0,0,0,0.12)", zIndex:100, opacity:0, pointerEvents:"none", transition:"opacity 0.15s" }} className="account-chip-tooltip">
-                                            <div style={{ color:"var(--text3)", marginBottom:2 }}>{selectedCloud === "azure" ? "Subscription ID" : "Account ID"}</div>
-                                            <div style={{ fontFamily:"monospace", fontWeight:600, color:"var(--text)", fontSize:12 }}>{accountId}</div>
-                                            {awsData?.identity?.tenant_id && <><div style={{ color:"var(--text3)", marginBottom:2, marginTop:6 }}>Tenant ID</div><div style={{ fontFamily:"monospace", fontWeight:600, color:"var(--text)", fontSize:12 }}>{awsData.identity.tenant_id}</div></>}
-                                            {scanMeta?.region && <><div style={{ color:"var(--text3)", marginBottom:2, marginTop:6 }}>Last Scan</div><div style={{ color:"var(--text)", fontSize:12 }}>{scanMeta.region} · {scanMeta.duration}s</div></>}
-                                        </div>
-                                    </div>
-                                )}
                                 <button className="btn btn-sm" onClick={() => { onSwitchCloud(); setSection("dashboard"); navigateTo("cloudSelect"); }} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
                                     Switch Provider
@@ -7131,6 +7177,7 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
                     secops: { name: "SecOps", desc: "Security Operations — Threat detection, vulnerability scanning, IAM audit, compliance reports and security incident management." },
                     aiops:  { name: "AIOps", desc: "AI-Powered Operations — Anomaly detection, predictive analytics, auto-remediation and root cause analysis using machine learning." },
                     rfp:    { name: "RFP Generator", desc: "Document Automation — Generate professional RFP documents from your cloud infrastructure data using AI-powered templates." },
+                    templates: { name: "Templates & Scripts", desc: "Ready-made infrastructure templates, runbooks, and automation scripts for common cloud operations tasks." },
                 };
                 const detail = appDetails[activeApp];
                 return (
@@ -7156,7 +7203,8 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, maxWidth: 480, width: "100%", marginTop: 12 }}>
                                 {(activeApp === "secops" ? ["Threat Detection","Vulnerability Scan","IAM Audit"] :
                                     activeApp === "aiops" ? ["Anomaly Detection","Predictions","Auto-Remediation"] :
-                                        ["AI Templates","PDF Export","Cloud Data"]).map(feature => (
+                                        activeApp === "templates" ? ["IaC Templates","Runbooks","Bash Scripts"] :
+                                            ["AI Templates","PDF Export","Cloud Data"]).map(feature => (
                                     <div key={feature} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "14px", textAlign: "center" }}>
                                         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)" }}>{feature}</div>
                                     </div>
@@ -7170,22 +7218,691 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
     );
 };
 
+const ADMIN_STYLES = `
+  .ap-shell { display: flex; height: 100vh; overflow: hidden; }
+  .ap-icon-strip {
+    width: 52px; background: var(--surface); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; align-items: center; padding: 12px 0; gap: 4px; flex-shrink: 0;
+  }
+  .ap-logo-mark {
+    width: 32px; height: 32px; background: linear-gradient(135deg,#6366f1,#4f46e5);
+    border-radius: 9px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px;
+  }
+  .ap-icon-btn {
+    width: 38px; height: 38px; border-radius: 9px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 3px; cursor: pointer; transition: background 0.15s;
+    border: none; background: transparent; color: var(--text2);
+  }
+  .ap-icon-btn.active { background: var(--accent-bg); border: 1.5px solid var(--accent); color: var(--accent); }
+  .ap-icon-btn:hover:not(.active) { background: var(--bg, #f5f6fa); }
+  .ap-icon-label { font-size: 9px; font-weight: 600; letter-spacing: 0.03em; }
+  .ap-sidebar {
+    width: 240px; background: var(--surface); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; height: 100vh; overflow-y: auto; flex-shrink: 0;
+  }
+  .ap-sidebar-head { padding: 18px 16px 14px; border-bottom: 1px solid var(--border); }
+  .ap-sidebar-brand { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .ap-sidebar-brand-icon {
+    width: 26px; height: 26px; background: var(--accent); border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ap-sidebar-brand-name { font-size: 14px; font-weight: 700; }
+  .ap-sidebar-org {
+    display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+    background: var(--accent-bg); border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--accent);
+  }
+  .ap-sidebar-section { padding: 10px 16px 4px; font-size: 10px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: 0.07em; }
+  .ap-nav-list { padding: 0 8px; flex: 1; }
+  .ap-nav-btn {
+    display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px;
+    width: 100%; text-align: left; border: none; background: transparent; cursor: pointer;
+    font-family: inherit; font-size: 13px; color: var(--text2); font-weight: 400;
+    position: relative; transition: all 0.12s;
+  }
+  .ap-nav-btn.active { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+  .ap-nav-btn.active::before {
+    content:''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+    width: 3px; height: 16px; background: var(--accent); border-radius: 0 3px 3px 0;
+  }
+  .ap-nav-btn:hover:not(.active) { background: var(--bg, #f5f6fa); }
+  .ap-badge {
+    background: var(--accent); color: #fff; border-radius: 20px; font-size: 10px;
+    font-weight: 700; padding: 1px 7px; margin-left: auto;
+  }
+  .ap-sidebar-foot { padding: 12px 16px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text3); }
+  .ap-main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .ap-topbar {
+    height: 52px; background: var(--surface); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 28px; gap: 12px; flex-shrink: 0;
+  }
+  .ap-topbar-title { font-size: 15px; font-weight: 600; flex: 1; }
+  .ap-topbar-email { font-size: 12px; color: var(--text2); }
+  .ap-body { flex: 1; overflow-y: auto; padding: 28px; }
+  .ap-page-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 20px; }
+  .ap-page-title { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+  .ap-page-sub { font-size: 13px; color: var(--text2); }
+  .ap-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .ap-client-row {
+    display: flex; align-items: center; gap: 16px; padding: 16px 20px;
+    border-bottom: 1px solid var(--border); transition: background 0.12s;
+  }
+  .ap-client-row:last-child { border-bottom: none; }
+  .ap-client-row:hover { background: #fafafa; }
+  .ap-client-icon {
+    width: 40px; height: 40px; background: var(--accent-bg); border: 1px solid #c7d2fe;
+    border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .ap-client-info { flex: 1; min-width: 0; }
+  .ap-client-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+  .ap-client-meta { font-size: 11px; color: var(--text3); margin-bottom: 6px; font-family: monospace; }
+  .ap-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+  .ap-tag { border-radius: 20px; padding: 2px 9px; font-size: 11px; font-weight: 600; border: 1px solid transparent; }
+  .ap-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .ap-view-panel {
+    border-top: 2px solid var(--accent-bg); background: #fafbff;
+    padding: 20px 20px 20px 76px; animation: apSlideDown 0.18s ease;
+  }
+  @keyframes apSlideDown { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
+  .ap-view-section-title { font-size: 12px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+  .ap-user-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+  .ap-user-chip { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 3px 12px; font-size: 12px; }
+  .ap-scan-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px,1fr)); gap: 8px; }
+  .ap-scan-stat { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; text-align: center; }
+  .ap-scan-stat-val { font-size: 20px; font-weight: 700; color: var(--accent); }
+  .ap-scan-stat-lbl { font-size: 10px; color: var(--text3); margin-top: 2px; }
+  .ap-scan-account { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+  .ap-scan-account-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .ap-scan-account-name { font-size: 13px; font-weight: 600; }
+  .ap-scan-account-meta { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .ap-cloud-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 5px; }
+  .ap-cloud-aws { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+  .ap-cloud-azure { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+  .ap-empty { text-align: center; padding: 48px; color: var(--text3); }
+  .ap-empty-icon { font-size: 36px; margin-bottom: 12px; }
+  .ap-empty-title { font-size: 15px; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
+  .ap-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 100;
+    display: flex; align-items: center; justify-content: center;
+    animation: apFadeIn 0.15s ease;
+  }
+  @keyframes apFadeIn { from { opacity:0; } to { opacity:1; } }
+  .ap-modal {
+    background: var(--surface); border-radius: 16px; padding: 28px; width: 520px; max-width: 95vw;
+    max-height: 88vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+    animation: apPopIn 0.18s ease;
+  }
+  @keyframes apPopIn { from { opacity:0; transform: scale(0.96) translateY(8px); } to { opacity:1; transform:none; } }
+  .ap-modal-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+  .ap-modal-title { font-size: 17px; font-weight: 700; }
+  .ap-modal-sub { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .ap-modal-close { width: 28px; height: 28px; border-radius: 7px; border: 1px solid var(--border); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--text2); }
+  .ap-modal-close:hover { background: var(--bg, #f5f6fa); }
+  .ap-field { margin-bottom: 16px; }
+  .ap-label { display: block; font-size: 10px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px; }
+  .ap-input {
+    width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px;
+    font-family: inherit; font-size: 13px; background: var(--bg, #f5f6fa); color: var(--text);
+    outline: none; transition: border 0.15s;
+  }
+  .ap-input:focus { border-color: var(--accent); background: var(--surface); }
+  .ap-input::placeholder { color: var(--text3); }
+  .ap-hint { font-size: 11px; color: var(--text3); margin-top: 4px; font-family: monospace; }
+  .ap-service-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-top: 2px; }
+  .ap-service-tile {
+    border: 2px solid var(--border); border-radius: 9px; padding: 10px 12px;
+    cursor: pointer; background: var(--bg, #f5f6fa); transition: all 0.13s; user-select: none;
+  }
+  .ap-service-tile.checked { border-color: var(--accent); background: var(--accent-bg); }
+  .ap-service-tile-top { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
+  .ap-check {
+    width: 15px; height: 15px; border-radius: 4px; border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.13s;
+  }
+  .ap-service-tile.checked .ap-check { background: var(--accent); border-color: var(--accent); }
+  .ap-check-mark { color: #fff; font-size: 9px; font-weight: 800; }
+  .ap-service-name { font-size: 12px; font-weight: 600; }
+  .ap-service-desc { font-size: 10px; color: var(--text3); padding-left: 22px; }
+  .ap-spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block; }
+  /* reuse existing btn classes from global CSS */
+  .ap-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; }
+  .ap-btn-primary { background: var(--accent); color: #fff; }
+  .ap-btn-primary:hover { background: var(--accent2, #2f4ac0); }
+  .ap-btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+  .ap-btn-ghost:hover { background: var(--bg, #f5f6fa); }
+  .ap-btn-danger { background: var(--red-bg); border: 1px solid #fca5a5; color: var(--red); }
+  .ap-btn-danger:hover { background: #fee2e2; }
+  .ap-btn-sm { padding: 5px 12px; font-size: 12px; border-radius: 7px; }
+  .ap-btn-signout { background: var(--bg, #f5f6fa); border: 1px solid var(--border); color: var(--text2); padding: 6px 14px; border-radius: 8px; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .ap-alert { border-radius: 8px; padding: 10px 16px; font-size: 13px; margin-bottom: 16px; }
+  .ap-alert-success { background: var(--green-bg); border: 1px solid #6ee7b7; color: #065f46; }
+  .ap-alert-error { background: var(--red-bg); border: 1px solid #fca5a5; color: #991b1b; }
+`;
+
+// ── 3. Sub-components needed by the full AdminPanel ───────────────────────────
+
+function ApSpinner() { return <div className="ap-spinner" />; }
+
+function ApServiceTiles({ selected, onToggle, services }) {
+    // uses the SERVICES constant already defined in App.jsx
+    const svcList = services || SERVICES;
+    return (
+        <div className="ap-service-grid">
+            {svcList.map(s => {
+                const checked = selected.includes(s.id);
+                return (
+                    <div key={s.id} className={`ap-service-tile ${checked ? 'checked' : ''}`} onClick={() => onToggle(s.id)}>
+                        <div className="ap-service-tile-top">
+                            <div className="ap-check">{checked && <span className="ap-check-mark">✓</span>}</div>
+                            <span className="ap-service-name" style={{ color: checked ? s.color : 'var(--text)' }}>{s.label}</span>
+                        </div>
+                        <div className="ap-service-desc">{s.desc}</div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+function ApCloudTiles({ selected, onToggle }) {
+    return (
+        <div className="ap-service-grid">
+            {CLOUDS.map(c => {
+                const checked = selected.includes(c.id);
+                return (
+                    <div key={c.id}
+                         className={`ap-service-tile ${checked ? 'checked' : ''}`}
+                         style={checked ? { borderColor: c.color, background: `${c.color}12` } : {}}
+                         onClick={() => onToggle(c.id)}>
+                        <div className="ap-service-tile-top">
+                            <div className="ap-check" style={checked ? { background: c.color, borderColor: c.color } : {}}>
+                                {checked && <span className="ap-check-mark">✓</span>}
+                            </div>
+                            <span className="ap-service-name" style={{ color: checked ? c.color : 'var(--text)' }}>
+                {c.icon} {c.label}
+              </span>
+                        </div>
+                        <div className="ap-service-desc">{c.desc}</div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+function ApCloudTag({ id }) {
+    const c = CLOUDS.find(x => x.id === id);
+    if (!c) return null;
+    return (
+        <span className="ap-tag" style={{ background: `${c.color}15`, borderColor: `${c.color}40`, color: c.color }}>
+      {c.icon} {c.label}
+    </span>
+    );
+}
+
+function ApServiceTag({ id }) {
+    const s = SERVICES.find(x => x.id === id);
+    if (!s) return null;
+    return (
+        <span className="ap-tag" style={{ background: `${s.color}15`, borderColor: `${s.color}40`, color: s.color }}>
+      {s.label}
+    </span>
+    );
+}
+
+function ApScanAccountCard({ rec }) {
+    const svc = rec.scanData?.services || {};
+    const stats = [
+        { label: 'EC2 / VMs',  value: rec.cloud === 'azure'
+                ? Object.values(svc).reduce((t,r) => t + (r?.virtual_machines?.length||0), 0)
+                : Object.values(svc).reduce((t,r) => t + (r?.ec2?.length||0), 0) },
+        { label: 'Functions',  value: Object.values(svc).reduce((t,r) => t + (r?.lambda_fn?.length||r?.azure_functions?.length||0), 0) },
+        { label: 'Databases',  value: Object.values(svc).reduce((t,r) => t + (r?.rds?.length||r?.sql_databases?.length||0), 0) },
+        { label: 'Storage',    value: rec.cloud === 'azure' ? (rec.scanData?.storage_accounts||[]).length : (rec.scanData?.s3||[]).length },
+        { label: 'Regions',    value: Object.keys(svc).length },
+        { label: 'Cost MTD',   value: rec.scanData?.costs?.total ? `$${rec.scanData.costs.total.toFixed(0)}` : '—' },
+    ];
+    return (
+        <div className="ap-scan-account">
+            <div className="ap-scan-account-head">
+                <div>
+                    <div className="ap-scan-account-name">{rec.accountName || rec.accountKey}</div>
+                    <div className="ap-scan-account-meta">{rec.email} · Scanned {(rec.scannedAt||'').slice(0,10)}</div>
+                </div>
+                <span className={`ap-cloud-badge ${rec.cloud === 'azure' ? 'ap-cloud-azure' : 'ap-cloud-aws'}`}>
+          {(rec.cloud||'').toUpperCase()}
+        </span>
+            </div>
+            {rec.scanData && (
+                <div className="ap-scan-grid">
+                    {stats.map(({ label, value }) => (
+                        <div key={label} className="ap-scan-stat">
+                            <div className="ap-scan-stat-val">{value}</div>
+                            <div className="ap-scan-stat-lbl">{label}</div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── 4. Onboard Modal ──────────────────────────────────────────────────────────
+function OnboardModal({ onClose, onCreated, token }) {
+    const [form, setForm] = useState({
+        slug: '', companyName: '', logoUrl: '', allowedServices: [], allowedClouds: []
+    });
+    const [loading, setLoading] = useState(false);
+    const [err, setErr] = useState('');
+
+    const toggleSvc   = id => setForm(p => ({ ...p, allowedServices: p.allowedServices.includes(id) ? p.allowedServices.filter(s=>s!==id) : [...p.allowedServices, id] }));
+    const toggleCloud = id => setForm(p => ({ ...p, allowedClouds:   p.allowedClouds.includes(id)   ? p.allowedClouds.filter(c=>c!==id)   : [...p.allowedClouds,   id] }));
+
+    const handleCreate = async () => {
+        if (!form.slug || !form.companyName || form.allowedServices.length === 0 || form.allowedClouds.length === 0) {
+            setErr('Company name, slug, at least one service and one cloud provider are required.'); return;
+        }
+        setLoading(true); setErr('');
+        try {
+            const res = await fetch(`${BACKEND}/api/admin/clients/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ ...form, allowedServices: form.allowedServices.join(','), allowedClouds: form.allowedClouds.join(',') }),
+            });
+            const json = await res.json();
+            if (json.error) { setErr(json.error); setLoading(false); return; }
+            onCreated(`Client "${form.companyName}" created!`);
+        } catch { setErr('Failed to create client'); setLoading(false); }
+    };
+
+    return (
+        <div className="ap-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+            <div className="ap-modal">
+                <div className="ap-modal-head">
+                    <div>
+                        <div className="ap-modal-title">Onboard New Client</div>
+                        <div className="ap-modal-sub">Fill in details and configure service &amp; cloud access.</div>
+                    </div>
+                    <button className="ap-modal-close" onClick={onClose}>✕</button>
+                </div>
+
+                {err && <div className="ap-alert ap-alert-error" style={{marginBottom:14}}>{err}</div>}
+
+                <div className="ap-field">
+                    <label className="ap-label">Company Name</label>
+                    <input className="ap-input" placeholder="e.g. Virgin Mobiles" value={form.companyName}
+                           onChange={e => setForm(p=>({...p, companyName: e.target.value}))} />
+                </div>
+                <div className="ap-field">
+                    <label className="ap-label">URL Slug</label>
+                    <input className="ap-input" placeholder="e.g. virginmobiles (no spaces)" value={form.slug}
+                           onChange={e => setForm(p=>({...p, slug: e.target.value.toLowerCase().replace(/\s/g,'')}))} />
+                    {form.slug && <div className="ap-hint">Client URL: yourapp.com/{form.slug}</div>}
+                </div>
+                <div className="ap-field">
+                    <label className="ap-label">Logo URL <span style={{fontWeight:400,textTransform:'none'}}>(optional)</span></label>
+                    <input className="ap-input" placeholder="https://..." value={form.logoUrl}
+                           onChange={e => setForm(p=>({...p, logoUrl: e.target.value}))} />
+                </div>
+                <div className="ap-field">
+                    <label className="ap-label">Allowed Cloud Providers</label>
+                    <ApCloudTiles selected={form.allowedClouds} onToggle={toggleCloud} />
+                </div>
+                <div className="ap-field">
+                    <label className="ap-label">Allowed Services</label>
+                    <ApServiceTiles selected={form.allowedServices} onToggle={toggleSvc} />
+                </div>
+
+                <div style={{display:'flex', gap:8, marginTop:4}}>
+                    <button className="ap-btn ap-btn-primary" style={{flex:1}} onClick={handleCreate} disabled={loading}>
+                        {loading ? <><ApSpinner /> Creating…</> : 'Create Client →'}
+                    </button>
+                    <button className="ap-btn ap-btn-ghost" onClick={onClose}>Cancel</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ── 5. Edit Modal ─────────────────────────────────────────────────────────────
+function EditModal({ client, onClose, onUpdated, token }) {
+    const [data, setData] = useState({
+        ...client,
+        allowedServices: (client.allowedServices||'').split(',').filter(Boolean),
+        allowedClouds:   (client.allowedClouds||'').split(',').filter(Boolean),
+    });
+    const [loading, setLoading] = useState(false);
+    const [err, setErr] = useState('');
+
+    const toggleSvc   = id => setData(p => ({ ...p, allowedServices: p.allowedServices.includes(id) ? p.allowedServices.filter(s=>s!==id) : [...p.allowedServices, id] }));
+    const toggleCloud = id => setData(p => ({ ...p, allowedClouds:   p.allowedClouds.includes(id)   ? p.allowedClouds.filter(c=>c!==id)   : [...p.allowedClouds,   id] }));
+
+    const handleUpdate = async () => {
+        setLoading(true); setErr('');
+        try {
+            const res = await fetch(`${BACKEND}/api/admin/clients/update`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ ...data, allowedServices: data.allowedServices.join(','), allowedClouds: data.allowedClouds.join(',') }),
+            });
+            const json = await res.json();
+            if (json.error) { setErr(json.error); setLoading(false); return; }
+            onUpdated('Client updated successfully!');
+        } catch { setErr('Failed to update client'); setLoading(false); }
+    };
+
+    return (
+        <div className="ap-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+            <div className="ap-modal">
+                <div className="ap-modal-head">
+                    <div>
+                        <div className="ap-modal-title">Edit {client.companyName}</div>
+                        <div className="ap-modal-sub">Update client details, cloud providers and service access.</div>
+                    </div>
+                    <button className="ap-modal-close" onClick={onClose}>✕</button>
+                </div>
+
+                {err && <div className="ap-alert ap-alert-error">{err}</div>}
+
+                <div className="ap-field">
+                    <label className="ap-label">Company Name</label>
+                    <input className="ap-input" value={data.companyName}
+                           onChange={e => setData(p=>({...p, companyName: e.target.value}))} />
+                </div>
+                <div className="ap-field">
+                    <label className="ap-label">Allowed Cloud Providers</label>
+                    <ApCloudTiles selected={data.allowedClouds} onToggle={toggleCloud} />
+                </div>
+                <div className="ap-field">
+                    <label className="ap-label">Allowed Services</label>
+                    <ApServiceTiles selected={data.allowedServices} onToggle={toggleSvc} />
+                </div>
+
+                <div style={{display:'flex', gap:8, marginTop:4}}>
+                    <button className="ap-btn ap-btn-primary" style={{flex:1}} onClick={handleUpdate} disabled={loading}>
+                        {loading ? <><ApSpinner /> Saving…</> : 'Save Changes'}
+                    </button>
+                    <button className="ap-btn ap-btn-ghost" onClick={onClose}>Cancel</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+const SERVICES = [
+    { id: 'cloudops', label: 'CloudOps', desc: 'Infrastructure Management', color: '#6366f1' },
+    { id: 'finops',   label: 'FinOps',   desc: 'Cost Management',           color: '#10b981' },
+    { id: 'secops',   label: 'SecOps',   desc: 'Security Operations',       color: '#ef4444' },
+    { id: 'aiops',    label: 'AIOps',    desc: 'AI-Powered Operations',     color: '#8b5cf6' },
+    { id: 'rfp',      label: 'RFP',      desc: 'Document Automation',       color: '#f59e0b' },
+];
+
+const CLOUDS = [
+    { id: 'aws',    label: 'AWS',    desc: 'Amazon Web Services',  color: '#f59e0b', icon: '☁' },
+    { id: 'azure',  label: 'Azure',  desc: 'Microsoft Azure',      color: '#3b82f6', icon: '⬡' },
+    { id: 'huawei', label: 'Huawei', desc: 'Huawei Cloud',         color: '#ef4444', icon: '◈' },
+];
+
+// ── 6. Full AdminPanel — REPLACES the existing AdminPanel in App.jsx ──────────
+const AdminPanel = ({ userEmail, onSignOut }) => {
+    const [clients, setClients]               = useState([]);
+    const [loading, setLoading]               = useState(true);
+    const [showOnboard, setShowOnboard]       = useState(false);
+    const [editingClient, setEditingClient]   = useState(null);
+    const [expandedSlug, setExpandedSlug]     = useState(null);
+    const [clientData, setClientData]         = useState({});
+    const [clientDataLoading, setClientDataLoading] = useState({});
+    const [msg, setMsg]   = useState('');
+    const [error, setError] = useState('');
+
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('cloudops-auth-token') : '';
+
+    const showMsg = m => { setMsg(m); setError(''); setTimeout(() => setMsg(''), 3500); };
+    const showErr = m => { setError(m); setMsg(''); };
+
+    const fetchClients = async () => {
+        setLoading(true);
+        try {
+            const res = await fetch(`${BACKEND}/api/admin/clients`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const json = await res.json();
+            setClients(json.clients || []);
+        } catch { showErr('Failed to load clients'); }
+        finally { setLoading(false); }
+    };
+
+    useEffect(() => { fetchClients(); }, []);
+
+    const handleDelete = async slug => {
+        if (!window.confirm(`Delete client "${slug}"? This cannot be undone.`)) return;
+        try {
+            await fetch(`${BACKEND}/api/admin/clients/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ slug }),
+            });
+            showMsg('Client deleted.');
+            if (expandedSlug === slug) setExpandedSlug(null);
+            fetchClients();
+        } catch { showErr('Failed to delete client'); }
+    };
+
+    const toggleExpand = async client => {
+        if (expandedSlug === client.slug) { setExpandedSlug(null); return; }
+        setExpandedSlug(client.slug);
+        if (clientData[client.slug]) return;
+        setClientDataLoading(p => ({ ...p, [client.slug]: true }));
+        try {
+            const res = await fetch(`${BACKEND}/api/admin/client-data/${client.slug}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const json = await res.json();
+            setClientData(p => ({ ...p, [client.slug]: json }));
+        } catch { showErr('Failed to load client data'); }
+        finally { setClientDataLoading(p => ({ ...p, [client.slug]: false })); }
+    };
+
+    return (
+        <>
+            <style>{ADMIN_STYLES}</style>
+
+            {showOnboard && (
+                <OnboardModal
+                    token={token}
+                    onClose={() => setShowOnboard(false)}
+                    onCreated={m => { showMsg(m); setShowOnboard(false); fetchClients(); }}
+                />
+            )}
+            {editingClient && (
+                <EditModal
+                    client={editingClient}
+                    token={token}
+                    onClose={() => setEditingClient(null)}
+                    onUpdated={m => { showMsg(m); setEditingClient(null); fetchClients(); }}
+                />
+            )}
+
+            <div className="ap-shell">
+
+                {/* Icon strip */}
+                <div className="ap-icon-strip">
+                    <div className="ap-logo-mark">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+                            <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+                        </svg>
+                    </div>
+                    <div style={{width:28,height:1,background:'var(--border)',marginBottom:6}}/>
+                    <button className="ap-icon-btn active">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        </svg>
+                        <span className="ap-icon-label">Admin</span>
+                    </button>
+                    <div style={{flex:1}}/>
+                    <button className="ap-icon-btn" title="Sign Out" onClick={onSignOut}
+                            style={{color:'var(--red)'}}
+                            onMouseEnter={e=>e.currentTarget.style.background='var(--red-bg)'}
+                            onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                            <polyline points="16 17 21 12 16 7"/>
+                            <line x1="21" y1="12" x2="9" y2="12"/>
+                        </svg>
+                        <span className="ap-icon-label">Exit</span>
+                    </button>
+                </div>
+
+                {/* Sidebar */}
+                <nav className="ap-sidebar">
+                    <div className="ap-sidebar-head">
+                        <div className="ap-sidebar-brand">
+                            <div className="ap-sidebar-brand-icon">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                </svg>
+                            </div>
+                            <span className="ap-sidebar-brand-name">Admin Panel</span>
+                        </div>
+                        <div className="ap-sidebar-org">⚙ OmniOps</div>
+                    </div>
+                    <div className="ap-sidebar-section">Clients</div>
+                    <div className="ap-nav-list">
+                        <button className="ap-nav-btn active">
+                            <span style={{width:18,textAlign:'center'}}>👥</span>
+                            <span style={{flex:1}}>All Clients</span>
+                            {clients.length > 0 && <span className="ap-badge">{clients.length}</span>}
+                        </button>
+                    </div>
+                    <div className="ap-sidebar-foot">{userEmail}</div>
+                </nav>
+
+                {/* Main */}
+                <div className="ap-main">
+                    <div className="ap-topbar">
+                        <span className="ap-topbar-title">👥 All Clients</span>
+                        <span className="ap-topbar-email">{userEmail}</span>
+                        <button className="ap-btn-signout" onClick={onSignOut}>Sign Out</button>
+                    </div>
+
+                    <div className="ap-body">
+                        {msg   && <div className="ap-alert ap-alert-success">✅ {msg}</div>}
+                        {error && <div className="ap-alert ap-alert-error">⚠ {error}</div>}
+
+                        <div className="ap-page-head">
+                            <div>
+                                <div className="ap-page-title">All Clients</div>
+                                <div className="ap-page-sub">{clients.length} client{clients.length !== 1 ? 's' : ''} onboarded</div>
+                            </div>
+                            <button className="ap-btn ap-btn-primary" onClick={() => setShowOnboard(true)}>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                                </svg>
+                                Onboard Client
+                            </button>
+                        </div>
+
+                        {loading ? (
+                            <div style={{display:'flex',alignItems:'center',gap:8,color:'var(--text3)',padding:24}}>
+                                <ApSpinner /> Loading clients…
+                            </div>
+                        ) : clients.length === 0 ? (
+                            <div className="ap-card">
+                                <div className="ap-empty">
+                                    <div className="ap-empty-icon">👥</div>
+                                    <div className="ap-empty-title">No clients yet</div>
+                                    <div style={{fontSize:13,color:'var(--text3)',marginBottom:16}}>Get started by onboarding your first client.</div>
+                                    <button className="ap-btn ap-btn-primary" onClick={() => setShowOnboard(true)}>+ Onboard First Client</button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="ap-card">
+                                {clients.map(client => {
+                                    const services = (client.allowedServices || '').split(',').filter(Boolean);
+                                    const clouds   = (client.allowedClouds   || '').split(',').filter(Boolean);
+                                    const isOpen        = expandedSlug === client.slug;
+                                    const isLoadingData = clientDataLoading[client.slug];
+                                    const data          = clientData[client.slug];
+
+                                    return (
+                                        <div key={client.slug}>
+                                            <div className="ap-client-row">
+                                                <div className="ap-client-icon">🏢</div>
+                                                <div className="ap-client-info">
+                                                    <div className="ap-client-name">{client.companyName}</div>
+                                                    <div className="ap-client-meta">/{client.slug} · Created {(client.createdAt||'').slice(0,10)}</div>
+                                                    <div className="ap-tags">
+                                                        {clouds.map(c   => <ApCloudTag   key={c} id={c} />)}
+                                                        {services.map(s => <ApServiceTag key={s} id={s} />)}
+                                                    </div>
+                                                </div>
+                                                <div className="ap-actions">
+                                                    <button className="ap-btn ap-btn-primary ap-btn-sm" onClick={() => toggleExpand(client)}>
+                                                        {isOpen ? '▲ Hide' : '👁 View'}
+                                                    </button>
+                                                    <button className="ap-btn ap-btn-ghost ap-btn-sm" onClick={() => setEditingClient(client)}>
+                                                        ✏ Edit
+                                                    </button>
+                                                    <button className="ap-btn ap-btn-danger ap-btn-sm" onClick={() => handleDelete(client.slug)}>
+                                                        🗑 Delete
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {isOpen && (
+                                                <div className="ap-view-panel">
+                                                    {isLoadingData ? (
+                                                        <div style={{display:'flex',alignItems:'center',gap:8,color:'var(--text3)'}}>
+                                                            <ApSpinner /> Loading client data…
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            <div className="ap-view-section-title">👤 Users ({(data?.users||[]).length})</div>
+                                                            {(data?.users||[]).length === 0 ? (
+                                                                <div style={{fontSize:13,color:'var(--text3)',marginBottom:16}}>No users registered yet.</div>
+                                                            ) : (
+                                                                <div className="ap-user-chips">
+                                                                    {(data?.users||[]).map(email => (
+                                                                        <span key={email} className="ap-user-chip">{email}</span>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                            <div className="ap-view-section-title" style={{marginTop:12}}>
+                                                                ☁ Scan Data ({(data?.scanRecords||[]).length} accounts)
+                                                            </div>
+                                                            {(data?.scanRecords||[]).length === 0 ? (
+                                                                <div style={{fontSize:13,color:'var(--text3)'}}>No scan data yet.</div>
+                                                            ) : (
+                                                                (data?.scanRecords||[]).map((rec,i) => <ApScanAccountCard key={i} rec={rec} />)
+                                                            )}
+                                                        </>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </>
+    );
+};
+
 // ── Root App ──────────────────────────────────────────────────────────────────
 export default function App() {
     const [page, setPage] = useState(() => {
         const token = localStorage.getItem('cloudops-auth-token');
         if (!token) return "landing";
         try {
-            if (token.includes('.')) {
-                const parts = token.split('.');
-                if (parts.length !== 3) return "landing";
-            } else {
-                const tokenData = atob(token);
-                if (!tokenData.includes(':')) return "landing";
+            const parts = token.split('.');
+            if (parts.length === 3) {
+                const payload = JSON.parse(atob(parts[1]));
+                if (payload.role === 'admin') return "admin";
             }
-        } catch (e) {
-            return "landing";
-        }
+        } catch {}
         return "app";
     });
     const [awsData, setAwsData] = useState(() => {
@@ -7210,6 +7927,17 @@ export default function App() {
         return localStorage.getItem('cloudops-selectedCloud') || "";
     });
     const [cloudAppSection, setCloudAppSection] = useState("main");
+    const [tenantServices, setTenantServices] = useState(null);
+
+    useEffect(() => {
+        if (!TENANT_SLUG) return;
+        fetch(`${BACKEND}/api/tenant/${TENANT_SLUG}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.found) setTenantServices(data.allowedServices);
+            })
+            .catch(() => {});
+    }, []);
     const [isScanning, setIsScanning] = useState(false);
     const [scanningRegion, setScanningRegion] = useState("");
 
@@ -7218,6 +7946,23 @@ export default function App() {
     // localStorage.removeItem('cloudops-scanMeta');
     // localStorage.removeItem('cloudops-accountId');
     // localStorage.removeItem('cloudops-selectedCloud');
+
+    useEffect(() => {
+        if (!TENANT_SLUG) return;
+        fetch(`${BACKEND}/api/tenant/${TENANT_SLUG}`)
+            .then(r => r.json())
+            .then(data => {
+                if (!data.found) {
+                    document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;font-size:18px;color:#c92a2a;">Invalid tenant URL. Please check your link.</div>`;
+                }
+            })
+            .catch(() => {});
+    }, []);
+
+    useEffect(() => {
+        localStorage.setItem('cloudops-page', page);
+    }, [page]);
+
 
     useEffect(() => {
         localStorage.setItem('cloudops-page', page);
@@ -7249,7 +7994,7 @@ export default function App() {
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email, password }),
+                    body: JSON.stringify({ email, password, tenantSlug: TENANT_SLUG }),
                     signal: controller.signal,
                 }
             ).finally(() => clearTimeout(timeout));
@@ -7294,8 +8039,12 @@ export default function App() {
             }
 
             setUserEmail(email);
-            setPage("app");
-            setCloudAppSection("cloudSelect");
+            if (result.role === 'admin') {
+                setPage("admin");
+            } else {
+                setPage("app");
+                setCloudAppSection("cloudSelect");
+            }
 
         } catch (error) {
             throw new Error("Invalid email or password. If you are a new user, please register.");
@@ -7309,7 +8058,7 @@ export default function App() {
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email, password }),
+                    body: JSON.stringify({ email, password, tenantSlug: TENANT_SLUG }),
                 }
             );
             const result = await res.json();
@@ -7831,14 +8580,14 @@ export default function App() {
         <>
             <style>{`
               :root {
-                --bg: #f5f6fa; --surface: #ffffff; --surface2: #f0f1f7;
-                --border: #e2e4ed; --border2: #d0d3e0;
-                --text: #0f1117; --text2: #4a5070; --text3: #8890aa;
-                --accent: #3b5bdb; --accent2: #2f4ac0; --accent-bg: #eef2ff;
-                --green: #2b9348; --green-bg: #e8f5ed;
-                --red: #c92a2a; --red-bg: #fff0f0;
-                --amber: #e67700; --amber-bg: #fff8e6;
-                --font: system-ui, -apple-system, sans-serif;
+                --bg: #f8f9fb; --surface: #ffffff; --surface2: #f4f5f7;
+                --border: #e8eaed; --border2: #d1d5db;
+                --text: #111827; --text2: #6b7280; --text3: #9ca3af;
+                --accent: #4f63d2; --accent2: #3b4fc0; --accent-bg: #eef0fc;
+                --green: #16a34a; --green-bg: #f0fdf4;
+                --red: #dc2626; --red-bg: #fef2f2;
+                --amber: #d97706; --amber-bg: #fffbeb;
+                --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
               }
               * { margin: 0; padding: 0; box-sizing: border-box; }
               body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
@@ -7900,8 +8649,17 @@ export default function App() {
                     setAwsData={setAwsData}
                     setScanMeta={setScanMeta}
                     setAccountId={setAccountId}
+                    tenantServices={tenantServices}
                 />
             )}
+
+            {page === "admin" && (
+                <AdminPanel
+                    userEmail={userEmail}
+                    onSignOut={handleLogout}
+                />
+            )}
+
         </>
     );
 }
