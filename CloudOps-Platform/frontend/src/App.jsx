@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell, LineChart, Line, ResponsiveContainer } from "recharts";
-
+import LandingPage from "./LandingPage";
 const BACKEND = "https://cloudops-backend-venkatesh-cgfqcdffc8bhh9cd.eastus-01.azurewebsites.net";
 
 // Multi-tenant: read slug from URL path
@@ -583,360 +583,360 @@ const AuthOverlay = React.memo(({
 });
 
 // ── Landing Page ───────────────────────────────────────────────────────────────
-const LandingPage = ({ onLogin, onRegister, activePage, handleLogin, handleRegister, setPage }) => {
-
-    const [isDark, setIsDark] = useState(true);
-    const [authMode, setAuthMode] = useState(null); // 'login' | 'register' | null
-
-    // Login form state
-    const [loginEmail, setLoginEmail]       = useState(() => { try { return localStorage.getItem('cloudops-rememberedEmail') || ''; } catch { return ''; } });
-    const [loginPassword, setLoginPassword] = useState('');
-    const [loginError, setLoginError]       = useState('');
-    const [loginLoading, setLoginLoading]   = useState(false);
-    const [rememberMe, setRememberMe]       = useState(() => { try { return localStorage.getItem('cloudops-rememberMe') === 'true'; } catch { return false; } });
-    const [showLoginPass, setShowLoginPass] = useState(false);
-
-    // Register form state
-    const [regEmail, setRegEmail]             = useState('');
-    const [regPassword, setRegPassword]       = useState('');
-    const [regConfirm, setRegConfirm]         = useState('');
-    const [regError, setRegError]             = useState('');
-    const [regLoading, setRegLoading]         = useState(false);
-    const [showRegPass, setShowRegPass]       = useState(false);
-    const [showRegConfirm, setShowRegConfirm] = useState(false);
-
-    // ── Theme tokens ──────────────────────────────────────────────────────────
-    const t = {
-        bg:          isDark ? "#070b14"                    : "#f4f6ff",
-        surface:     isDark ? "rgba(255,255,255,0.04)"     : "rgba(255,255,255,0.85)",
-        border:      isDark ? "rgba(255,255,255,0.08)"     : "rgba(99,102,241,0.15)",
-        text:        isDark ? "#f1f5f9"                    : "#0d0f1c",
-        textSub:     isDark ? "rgba(241,245,249,0.55)"     : "rgba(13,15,28,0.58)",
-        textFaint:   isDark ? "rgba(241,245,249,0.3)"      : "rgba(13,15,28,0.35)",
-        navBg:       isDark ? "rgba(7,11,20,0.82)"         : "rgba(244,246,255,0.88)",
-        navBorder:   isDark ? "rgba(255,255,255,0.07)"     : "rgba(99,102,241,0.14)",
-        secBg:       isDark ? "rgba(255,255,255,0.018)"    : "rgba(99,102,241,0.025)",
-        secBorder:   isDark ? "rgba(255,255,255,0.06)"     : "rgba(99,102,241,0.1)",
-        inputBg:     isDark ? "rgba(255,255,255,0.06)"     : "#ffffff",
-        inputBorder: isDark ? "rgba(255,255,255,0.12)"     : "rgba(99,102,241,0.22)",
-        footerText:  isDark ? "rgba(241,245,249,0.22)"     : "rgba(13,15,28,0.32)",
-        cardShadow:  isDark ? "0 2px 24px rgba(0,0,0,0.4)": "0 2px 24px rgba(99,102,241,0.08)",
-        modalBg:     isDark ? "#0d1120"                    : "#ffffff",
-        modalShadow: isDark ? "0 32px 80px rgba(0,0,0,0.7),0 0 0 1px rgba(99,102,241,0.1)" : "0 32px 80px rgba(99,102,241,0.18),0 0 0 1px rgba(99,102,241,0.14)",
-        errBg:       isDark ? "rgba(239,68,68,0.1)"        : "rgba(239,68,68,0.06)",
-        errBorder:   isDark ? "rgba(239,68,68,0.3)"        : "rgba(239,68,68,0.25)",
-    };
-
-    const products = [
-        { id:"cloudops", color:"#6366f1", gradient:"linear-gradient(135deg,#6366f1,#4f46e5)", glow:"rgba(99,102,241,0.25)", bg:isDark?"rgba(99,102,241,0.1)":"rgba(99,102,241,0.08)",
-            icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>,
-            title:"CloudOps", tagline:"Infrastructure Management", desc:"Scan and manage AWS, GCP or Azure resources across all regions with real-time visibility.", features:["Multi-region resource scan","Cost & usage analytics","IAM, S3, Route53, CloudFront"] },
-        { id:"secops", color:"#ef4444", gradient:"linear-gradient(135deg,#ef4444,#dc2626)", glow:"rgba(239,68,68,0.25)", bg:isDark?"rgba(239,68,68,0.1)":"rgba(239,68,68,0.08)",
-            icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
-            title:"SecOps", tagline:"Security Operations", desc:"Detect threats, scan vulnerabilities and audit IAM policies across your entire cloud estate.", features:["Threat detection","Vulnerability scanning","Compliance reports"] },
-        { id:"finops", color:"#10b981", gradient:"linear-gradient(135deg,#10b981,#059669)", glow:"rgba(16,185,129,0.25)", bg:isDark?"rgba(16,185,129,0.1)":"rgba(16,185,129,0.08)",
-            icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
-            title:"FinOps", tagline:"Cost Management", desc:"Track and optimise cloud spending with budget alerts, cost allocation and savings recommendations.", features:["Cost analysis by service","Budget alerts","Savings recommendations"] },
-        { id:"aiops", color:"#8b5cf6", gradient:"linear-gradient(135deg,#8b5cf6,#7c3aed)", glow:"rgba(139,92,246,0.25)", bg:isDark?"rgba(139,92,246,0.1)":"rgba(139,92,246,0.08)",
-            icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>,
-            title:"AIOps", tagline:"AI-Powered Operations", desc:"Leverage machine learning to detect anomalies, predict incidents and auto-remediate issues.", features:["Anomaly detection","Predictive analytics","Auto-remediation"] },
-        { id:"rfp", color:"#f59e0b", gradient:"linear-gradient(135deg,#f59e0b,#d97706)", glow:"rgba(245,158,11,0.25)", bg:isDark?"rgba(245,158,11,0.1)":"rgba(245,158,11,0.08)",
-            icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
-            title:"RFP Generator", tagline:"Document Automation", desc:"Generate professional RFP documents from live cloud infrastructure data using AI templates.", features:["AI-powered templates","PDF export","Live cloud data"] },
-    ];
-
-    const stats = [
-        { value:"20+",  label:"AWS Regions",      icon:"🌐", color:"#6366f1" },
-        { value:"18+",  label:"Resource Types",   icon:"📦", color:"#8b5cf6" },
-        { value:"100%", label:"Alert Automation", icon:"⚡", color:"#10b981" },
-        { value:"5",    label:"Integrated Tools", icon:"🔧", color:"#f59e0b" },
-    ];
-
-    // ── Handlers ──────────────────────────────────────────────────────────────
-    const doLogin = async () => {
-        if (!loginEmail || !loginPassword) { setLoginError("Please enter your email and password."); return; }
-        setLoginLoading(true); setLoginError('');
-        try {
-            if (handleLogin)     await handleLogin(loginEmail, loginPassword);
-            else if (onLogin)    await onLogin(loginEmail, loginPassword);
-            try {
-                if (rememberMe) { localStorage.setItem('cloudops-rememberedEmail', loginEmail); localStorage.setItem('cloudops-rememberMe','true'); }
-                else { localStorage.removeItem('cloudops-rememberedEmail'); localStorage.removeItem('cloudops-rememberMe'); }
-            } catch {}
-            setAuthMode(null);
-        } catch(err) {
-            setLoginError(err.message || "Invalid email or password.");
-        } finally { setLoginLoading(false); }
-    };
-
-    const doRegister = async () => {
-        if (!regEmail || !regPassword || !regConfirm) { setRegError("Please fill in all fields."); return; }
-        if (regPassword.length < 6) { setRegError("Password must be at least 6 characters."); return; }
-        if (regPassword !== regConfirm) { setRegError("Passwords do not match."); return; }
-        setRegLoading(true); setRegError('');
-        try {
-            if (handleRegister)      await handleRegister(regEmail, regPassword);
-            else if (onRegister)     await onRegister(regEmail, regPassword);
-            setAuthMode(null);
-        } catch(err) {
-            setRegError(err.message || "Registration failed. Please try again.");
-        } finally { setRegLoading(false); }
-    };
-
-    const openLogin    = () => { setLoginError(''); setLoginPassword(''); setAuthMode('login'); };
-    const openRegister = () => { setRegError(''); setRegEmail(''); setRegPassword(''); setRegConfirm(''); setAuthMode('register'); };
-
-    // ── Shared input styles ───────────────────────────────────────────────────
-    const inp = {
-        width:"100%", padding:"11px 14px", borderRadius:10,
-        background:t.inputBg, border:`1.5px solid ${t.inputBorder}`,
-        color:t.text, fontSize:14, outline:"none",
-        fontFamily:"'DM Sans',sans-serif", boxSizing:"border-box",
-        transition:"border-color 0.2s",
-    };
-    const lbl = { fontSize:12, fontWeight:600, color:t.textSub, marginBottom:6, display:"block", letterSpacing:"0.02em" };
-
-    const ErrBox = ({ msg }) => msg ? (
-        <div style={{ background:t.errBg, border:`1px solid ${t.errBorder}`, borderRadius:9, padding:"10px 14px", fontSize:13, color:"#ef4444", marginBottom:16, display:"flex", gap:8, alignItems:"center" }}>
-            <span>&#9888;</span> {msg}
-        </div>
-    ) : null;
-
-    // ── Auth overlay ──────────────────────────────────────────────────────────
-
-
-    // ── Main render ───────────────────────────────────────────────────────────
-    return (
-        <div style={{ minHeight:"100vh", background:t.bg, fontFamily:"'DM Sans',system-ui,sans-serif", color:t.text, overflowX:"hidden", transition:"background 0.35s,color 0.35s" }}>
-
-            <style>{`
-                @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap');
-                html,body { overflow-x:hidden; margin:0; }
-                @keyframes slideUp { from{opacity:0;transform:translateY(28px) scale(0.96)} to{opacity:1;transform:translateY(0) scale(1)} }
-                @keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:0.45} }
-                .glow-orb { position:absolute; border-radius:50%; filter:blur(90px); pointer-events:none; }
-                .pcard { transition:transform 0.3s ease,box-shadow 0.3s ease; }
-                .pcard:hover { transform:translateY(-6px) !important; box-shadow:0 20px 56px rgba(0,0,0,0.22) !important; }
-            `}</style>
-
-            {authMode && (
-                <AuthOverlay
-                    authMode={authMode}
-                    setAuthMode={setAuthMode}
-                    isDark={isDark}
-                    t={t}
-
-                    loginEmail={loginEmail}
-                    setLoginEmail={setLoginEmail}
-                    loginPassword={loginPassword}
-                    setLoginPassword={setLoginPassword}
-                    loginError={loginError}
-                    loginLoading={loginLoading}
-                    rememberMe={rememberMe}
-                    setRememberMe={setRememberMe}
-                    showLoginPass={showLoginPass}
-                    setShowLoginPass={setShowLoginPass}
-
-                    regEmail={regEmail}
-                    setRegEmail={setRegEmail}
-                    regPassword={regPassword}
-                    setRegPassword={setRegPassword}
-                    regConfirm={regConfirm}
-                    setRegConfirm={setRegConfirm}
-                    regError={regError}
-                    regLoading={regLoading}
-                    showRegPass={showRegPass}
-                    setShowRegPass={setShowRegPass}
-                    showRegConfirm={showRegConfirm}
-                    setShowRegConfirm={setShowRegConfirm}
-
-                    doLogin={doLogin}
-                    doRegister={doRegister}
-                />
-            )}
-
-            <div className="glow-orb" style={{ width:700, height:700, background:"#6366f1", opacity:isDark?0.16:0.07, top:-280, left:-180 }} />
-            <div className="glow-orb" style={{ width:500, height:500, background:"#8b5cf6", opacity:isDark?0.13:0.05, top:150, right:-160 }} />
-
-            {/* ── NAVBAR ── */}
-            <nav style={{ position:"sticky", top:0, zIndex:100, background:t.navBg, backdropFilter:"blur(24px) saturate(180%)", borderBottom:`1px solid ${t.navBorder}`, padding:"0 48px", height:66, display:"flex", alignItems:"center", justifyContent:"space-between", transition:"background 0.35s,border-color 0.35s" }}>
-                <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                        <div style={{ width:36, height:36, background:"linear-gradient(135deg,#6366f1,#4f46e5)", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 16px rgba(99,102,241,0.45)" }}>
-                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
-                        </div>
-                        <span style={{ fontSize:17, fontWeight:700, fontFamily:"'Syne',sans-serif", letterSpacing:"-0.025em", color:t.text }}>OmniOps</span>
-                    </div>
-                    <div style={{ width:1, height:22, background:t.border, margin:"0 4px" }} />
-                    {/* FIX: use color on parent span instead of React.cloneElement */}
-                    <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                        {products.map(p => (
-                            <div key={p.id} style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 11px", borderRadius:7, fontSize:11.5, fontWeight:600, color:p.color, background:`${p.color}0f`, border:`1px solid ${p.color}28`, cursor:"default" }}>
-                                <span style={{ display:"flex", color:p.color }}>{p.icon}</span>
-                                {p.title}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                    <button onClick={() => setIsDark(!isDark)} style={{ width:38, height:38, borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", background:t.surface, border:`1px solid ${t.border}`, cursor:"pointer", transition:"all 0.2s" }}>
-                        {isDark
-                            ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={t.textSub} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-                            : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={t.textSub} strokeWidth="2" strokeLinecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-                        }
-                    </button>
-                    <div style={{ width:1, height:22, background:t.border }} />
-                    <button onClick={openLogin} style={{ padding:"8px 18px", borderRadius:10, fontSize:13.5, fontWeight:600, background:"transparent", color:t.textSub, border:`1px solid ${t.border}`, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all 0.2s" }}>Sign In</button>
-                    <button onClick={openRegister} style={{ padding:"8px 20px", borderRadius:10, fontSize:13.5, fontWeight:700, background:"linear-gradient(135deg,#6366f1,#4f46e5)", color:"white", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", boxShadow:"0 4px 18px rgba(99,102,241,0.42)" }}>Get Started →</button>
-                </div>
-            </nav>
-
-            {/* ── HERO ── */}
-            <section style={{ textAlign:"center", padding:"112px 24px 90px", position:"relative" }}>
-                <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:isDark?"rgba(99,102,241,0.1)":"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.28)", borderRadius:100, padding:"6px 18px", fontSize:12, fontWeight:600, color:"#818cf8", marginBottom:32, letterSpacing:"0.04em", textTransform:"uppercase" }}>
-                    <span style={{ width:7, height:7, borderRadius:"50%", background:"#6366f1", boxShadow:"0 0 10px #6366f1", display:"inline-block", animation:"pulse 2s ease-in-out infinite" }} />
-                    All-in-One Cloud Operations Platform
-                </div>
-                <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:"clamp(44px,6vw,72px)", fontWeight:800, letterSpacing:"-0.045em", lineHeight:1.04, margin:"0 auto 28px", maxWidth:800, color:t.text }}>
-                    One platform for<br />
-                    <span style={{ background:"linear-gradient(135deg,#6366f1 0%,#8b5cf6 50%,#06b6d4 100%)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>
-                        all your cloud ops
-                    </span>
-                </h1>
-                <p style={{ fontSize:18, color:t.textSub, maxWidth:540, margin:"0 auto 44px", lineHeight:1.75, fontWeight:300 }}>
-                    CloudOps, SecOps, FinOps, AIOps and RFP automation —
-                    everything your team needs to manage, secure and optimise your cloud.
-                </p>
-                <div style={{ display:"flex", gap:14, justifyContent:"center", alignItems:"center", marginBottom:80 }}>
-                    <button onClick={openRegister} style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"14px 30px", borderRadius:12, background:"linear-gradient(135deg,#6366f1,#4f46e5)", color:"white", fontFamily:"'DM Sans',sans-serif", fontSize:15, fontWeight:700, border:"none", cursor:"pointer", boxShadow:"0 10px 36px rgba(99,102,241,0.45)" }}>
-                        Get Started Free <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-                    </button>
-                    <button onClick={openLogin} style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"14px 28px", borderRadius:12, background:t.surface, color:t.textSub, fontFamily:"'DM Sans',sans-serif", fontSize:15, fontWeight:600, border:`1px solid ${t.border}`, cursor:"pointer" }}>
-                        Sign In
-                    </button>
-                </div>
-                <div style={{ display:"flex", gap:16, justifyContent:"center", flexWrap:"wrap", maxWidth:760, margin:"0 auto" }}>
-                    {stats.map(s => (
-                        <div key={s.label} style={{ flex:"1", minWidth:155, background:t.surface, border:`1px solid ${t.border}`, borderRadius:18, padding:"24px 20px", textAlign:"center", boxShadow:t.cardShadow, position:"relative", overflow:"hidden", transition:"all 0.3s" }}>
-                            <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:`linear-gradient(90deg,transparent,${s.color}70,transparent)` }} />
-                            <div style={{ fontSize:28, marginBottom:10 }}>{s.icon}</div>
-                            <div style={{ fontSize:32, fontWeight:800, fontFamily:"'Syne',sans-serif", letterSpacing:"-0.04em", color:s.color, lineHeight:1, marginBottom:6 }}>{s.value}</div>
-                            <div style={{ fontSize:12.5, color:t.textSub, fontWeight:500 }}>{s.label}</div>
-                        </div>
-                    ))}
-                </div>
-            </section>
-
-            {/* ── PRODUCTS ── */}
-            <section style={{ padding:"60px 48px 90px", maxWidth:1240, margin:"0 auto" }}>
-                <div style={{ textAlign:"center", marginBottom:60 }}>
-                    <div style={{ fontSize:10.5, fontWeight:700, color:t.textFaint, textTransform:"uppercase", letterSpacing:"0.16em", marginBottom:14 }}>Platform Suite</div>
-                    <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:42, fontWeight:800, letterSpacing:"-0.035em", marginBottom:14, lineHeight:1.12, color:t.text }}>Five powerful tools.<br />One unified platform.</h2>
-                    <p style={{ fontSize:16, color:t.textSub, maxWidth:450, margin:"0 auto", lineHeight:1.75, fontWeight:300 }}>Each tool is built for a specific cloud operations use case, all from a single login.</p>
-                </div>
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:18, marginBottom:18 }}>
-                    {products.slice(0,3).map(p => (
-                        <div key={p.id} className="pcard" style={{ background:t.surface, border:`1px solid ${t.border}`, borderRadius:22, padding:30, position:"relative", overflow:"hidden", boxShadow:t.cardShadow }}>
-                            <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:p.gradient }} />
-                            <div style={{ width:50, height:50, borderRadius:14, background:p.bg, border:`1px solid ${p.color}28`, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:20, color:p.color }}>{p.icon}</div>
-                            <div style={{ fontSize:19, fontWeight:700, fontFamily:"'Syne',sans-serif", marginBottom:4, color:t.text }}>{p.title}</div>
-                            <div style={{ fontSize:10.5, fontWeight:700, color:p.color, marginBottom:14, textTransform:"uppercase", letterSpacing:"0.1em" }}>{p.tagline}</div>
-                            <div style={{ fontSize:13.5, color:t.textSub, lineHeight:1.75, marginBottom:22, fontWeight:300 }}>{p.desc}</div>
-                            <div style={{ display:"flex", flexDirection:"column", gap:9, marginBottom:22 }}>
-                                {p.features.map(f => (
-                                    <div key={f} style={{ display:"flex", alignItems:"center", gap:10, fontSize:12.5, color:t.textSub }}>
-                                        <div style={{ width:18, height:18, borderRadius:"50%", background:p.bg, border:`1px solid ${p.color}35`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                                            <div style={{ width:6, height:6, borderRadius:"50%", background:p.color }} />
-                                        </div>
-                                        {f}
-                                    </div>
-                                ))}
-                            </div>
-                            {p.id !== "cloudops"
-                                ? <div style={{ display:"inline-flex", alignItems:"center", gap:6, background:`${p.color}12`, border:`1px solid ${p.color}28`, borderRadius:20, padding:"5px 14px", fontSize:11, fontWeight:700, color:p.color }}>&#x1F680; Coming Soon</div>
-                                : <button onClick={openRegister} style={{ display:"inline-flex", alignItems:"center", gap:6, background:p.gradient, border:"none", borderRadius:10, padding:"9px 18px", fontSize:13, fontWeight:700, color:"white", cursor:"pointer", boxShadow:`0 6px 20px ${p.glow}` }}>Get Started →</button>
-                            }
-                        </div>
-                    ))}
-                </div>
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:18, maxWidth:820, margin:"0 auto" }}>
-                    {products.slice(3).map(p => (
-                        <div key={p.id} className="pcard" style={{ background:t.surface, border:`1px solid ${t.border}`, borderRadius:22, padding:28, position:"relative", overflow:"hidden", boxShadow:t.cardShadow }}>
-                            <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:p.gradient }} />
-                            <div style={{ display:"flex", alignItems:"flex-start", gap:18 }}>
-                                <div style={{ width:50, height:50, borderRadius:14, background:p.bg, border:`1px solid ${p.color}28`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, color:p.color }}>{p.icon}</div>
-                                <div style={{ flex:1 }}>
-                                    <div style={{ fontSize:17, fontWeight:700, fontFamily:"'Syne',sans-serif", marginBottom:3, color:t.text }}>{p.title}</div>
-                                    <div style={{ fontSize:10.5, fontWeight:700, color:p.color, marginBottom:10, textTransform:"uppercase", letterSpacing:"0.1em" }}>{p.tagline}</div>
-                                    <div style={{ fontSize:13, color:t.textSub, lineHeight:1.75, marginBottom:14, fontWeight:300 }}>{p.desc}</div>
-                                    <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
-                                        {p.features.map(f => <div key={f} style={{ display:"inline-flex", alignItems:"center", gap:5, background:`${p.color}0e`, border:`1px solid ${p.color}22`, borderRadius:6, padding:"3px 10px", fontSize:11, color:p.color, fontWeight:600 }}>{f}</div>)}
-                                    </div>
-                                    <div style={{ marginTop:14, display:"inline-flex", alignItems:"center", gap:6, background:`${p.color}12`, border:`1px solid ${p.color}28`, borderRadius:20, padding:"4px 12px", fontSize:11, fontWeight:700, color:p.color }}>&#x1F680; Coming Soon</div>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </section>
-
-            {/* ── HOW IT WORKS ── */}
-            <section style={{ padding:"90px 48px", borderTop:`1px solid ${t.secBorder}`, borderBottom:`1px solid ${t.secBorder}`, background:t.secBg, position:"relative", transition:"all 0.35s" }}>
-                <div className="glow-orb" style={{ width:500, height:500, background:"#6366f1", opacity:isDark?0.13:0.05, bottom:-200, right:-100 }} />
-                <div style={{ maxWidth:920, margin:"0 auto", textAlign:"center" }}>
-                    <div style={{ fontSize:10.5, fontWeight:700, color:t.textFaint, textTransform:"uppercase", letterSpacing:"0.16em", marginBottom:14 }}>How it works</div>
-                    <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:38, fontWeight:800, letterSpacing:"-0.035em", marginBottom:56, lineHeight:1.12, color:t.text }}>Up and running in 3 steps</h2>
-                    <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:22, position:"relative" }}>
-                        <div style={{ position:"absolute", top:42, left:"18%", right:"18%", height:1, background:"linear-gradient(90deg,rgba(99,102,241,0),rgba(99,102,241,0.35),rgba(99,102,241,0))", zIndex:0 }} />
-                        {[
-                            { n:"01", title:"Register",       desc:"Create your free account in seconds. No credit card required.", emoji:"👤" },
-                            { n:"02", title:"Connect Cloud",  desc:"Securely link your AWS, GCP or Azure account with one click.",   emoji:"☁️" },
-                            { n:"03", title:"Scan & Monitor", desc:"Get real-time resource visibility and instant alert automation.", emoji:"📊" },
-                        ].map(s => (
-                            <div key={s.n} style={{ background:t.surface, border:`1px solid ${t.border}`, borderRadius:18, padding:"32px 26px", textAlign:"center", position:"relative", zIndex:1, boxShadow:t.cardShadow }}>
-                                <div style={{ width:60, height:60, borderRadius:"50%", background:"linear-gradient(135deg,#6366f1,#4f46e5)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 18px", fontSize:24, boxShadow:"0 10px 28px rgba(99,102,241,0.42)" }}>{s.emoji}</div>
-                                <div style={{ fontSize:10, fontWeight:800, color:"#6366f1", letterSpacing:"0.12em", marginBottom:10, textTransform:"uppercase" }}>{s.n}</div>
-                                <div style={{ fontSize:17, fontWeight:700, fontFamily:"'Syne',sans-serif", marginBottom:10, color:t.text }}>{s.title}</div>
-                                <div style={{ fontSize:13.5, color:t.textSub, lineHeight:1.7, fontWeight:300 }}>{s.desc}</div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            {/* ── CTA ── */}
-            <section style={{ textAlign:"center", padding:"110px 24px", position:"relative", overflow:"hidden" }}>
-                <div className="glow-orb" style={{ width:700, height:400, background:"#6366f1", opacity:isDark?0.13:0.05, bottom:-120, left:"50%", transform:"translateX(-50%)" }} />
-                <div style={{ position:"relative", zIndex:1 }}>
-                    <div style={{ fontSize:10.5, fontWeight:700, color:t.textFaint, textTransform:"uppercase", letterSpacing:"0.16em", marginBottom:16 }}>Ready to go?</div>
-                    <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:"clamp(36px,5vw,54px)", fontWeight:800, letterSpacing:"-0.04em", marginBottom:18, lineHeight:1.08, color:t.text }}>Take control of<br />your entire cloud</h2>
-                    <p style={{ fontSize:17, color:t.textSub, fontWeight:300, maxWidth:440, margin:"0 auto 40px" }}>Join thousands of teams managing their cloud operations from one place.</p>
-                    <div style={{ display:"flex", gap:14, justifyContent:"center" }}>
-                        <button onClick={openRegister} style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"15px 34px", borderRadius:13, background:"linear-gradient(135deg,#6366f1,#4f46e5)", color:"white", fontFamily:"'DM Sans',sans-serif", fontSize:16, fontWeight:700, border:"none", cursor:"pointer", boxShadow:"0 12px 40px rgba(99,102,241,0.48)" }}>
-                            Create Free Account <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-                        </button>
-                        <button onClick={openLogin} style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"15px 28px", borderRadius:13, background:t.surface, color:t.textSub, fontFamily:"'DM Sans',sans-serif", fontSize:16, fontWeight:600, border:`1px solid ${t.border}`, cursor:"pointer" }}>Sign In</button>
-                    </div>
-                </div>
-            </section>
-
-            {/* ── FOOTER ── */}
-            <footer style={{ borderTop:`1px solid ${t.secBorder}`, padding:"28px 48px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                    <div style={{ width:28, height:28, background:"linear-gradient(135deg,#6366f1,#4f46e5)", borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
-                    </div>
-                    <span style={{ fontSize:14, fontWeight:700, fontFamily:"'Syne',sans-serif", color:t.text }}>OmniOps</span>
-                </div>
-                <div style={{ display:"flex", gap:22 }}>
-                    {products.map(p => <span key={p.id} style={{ fontSize:12, color:p.color, fontWeight:600, opacity:0.65 }}>{p.title}</span>)}
-                </div>
-                <div style={{ fontSize:12, color:t.footerText }}>&#169; 2026 OmniOps Platform. All rights reserved.</div>
-            </footer>
-        </div>
-    );
-};
+// const LandingPage = ({ onLogin, onRegister, activePage, handleLogin, handleRegister, setPage }) => {
+//
+//     const [isDark, setIsDark] = useState(true);
+//     const [authMode, setAuthMode] = useState(null); // 'login' | 'register' | null
+//
+//     // Login form state
+//     const [loginEmail, setLoginEmail]       = useState(() => { try { return localStorage.getItem('cloudops-rememberedEmail') || ''; } catch { return ''; } });
+//     const [loginPassword, setLoginPassword] = useState('');
+//     const [loginError, setLoginError]       = useState('');
+//     const [loginLoading, setLoginLoading]   = useState(false);
+//     const [rememberMe, setRememberMe]       = useState(() => { try { return localStorage.getItem('cloudops-rememberMe') === 'true'; } catch { return false; } });
+//     const [showLoginPass, setShowLoginPass] = useState(false);
+//
+//     // Register form state
+//     const [regEmail, setRegEmail]             = useState('');
+//     const [regPassword, setRegPassword]       = useState('');
+//     const [regConfirm, setRegConfirm]         = useState('');
+//     const [regError, setRegError]             = useState('');
+//     const [regLoading, setRegLoading]         = useState(false);
+//     const [showRegPass, setShowRegPass]       = useState(false);
+//     const [showRegConfirm, setShowRegConfirm] = useState(false);
+//
+//     // ── Theme tokens ──────────────────────────────────────────────────────────
+//     const t = {
+//         bg:          isDark ? "#070b14"                    : "#f4f6ff",
+//         surface:     isDark ? "rgba(255,255,255,0.04)"     : "rgba(255,255,255,0.85)",
+//         border:      isDark ? "rgba(255,255,255,0.08)"     : "rgba(99,102,241,0.15)",
+//         text:        isDark ? "#f1f5f9"                    : "#0d0f1c",
+//         textSub:     isDark ? "rgba(241,245,249,0.55)"     : "rgba(13,15,28,0.58)",
+//         textFaint:   isDark ? "rgba(241,245,249,0.3)"      : "rgba(13,15,28,0.35)",
+//         navBg:       isDark ? "rgba(7,11,20,0.82)"         : "rgba(244,246,255,0.88)",
+//         navBorder:   isDark ? "rgba(255,255,255,0.07)"     : "rgba(99,102,241,0.14)",
+//         secBg:       isDark ? "rgba(255,255,255,0.018)"    : "rgba(99,102,241,0.025)",
+//         secBorder:   isDark ? "rgba(255,255,255,0.06)"     : "rgba(99,102,241,0.1)",
+//         inputBg:     isDark ? "rgba(255,255,255,0.06)"     : "#ffffff",
+//         inputBorder: isDark ? "rgba(255,255,255,0.12)"     : "rgba(99,102,241,0.22)",
+//         footerText:  isDark ? "rgba(241,245,249,0.22)"     : "rgba(13,15,28,0.32)",
+//         cardShadow:  isDark ? "0 2px 24px rgba(0,0,0,0.4)": "0 2px 24px rgba(99,102,241,0.08)",
+//         modalBg:     isDark ? "#0d1120"                    : "#ffffff",
+//         modalShadow: isDark ? "0 32px 80px rgba(0,0,0,0.7),0 0 0 1px rgba(99,102,241,0.1)" : "0 32px 80px rgba(99,102,241,0.18),0 0 0 1px rgba(99,102,241,0.14)",
+//         errBg:       isDark ? "rgba(239,68,68,0.1)"        : "rgba(239,68,68,0.06)",
+//         errBorder:   isDark ? "rgba(239,68,68,0.3)"        : "rgba(239,68,68,0.25)",
+//     };
+//
+//     const products = [
+//         { id:"cloudops", color:"#6366f1", gradient:"linear-gradient(135deg,#6366f1,#4f46e5)", glow:"rgba(99,102,241,0.25)", bg:isDark?"rgba(99,102,241,0.1)":"rgba(99,102,241,0.08)",
+//             icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>,
+//             title:"CloudOps", tagline:"Infrastructure Management", desc:"Scan and manage AWS, GCP or Azure resources across all regions with real-time visibility.", features:["Multi-region resource scan","Cost & usage analytics","IAM, S3, Route53, CloudFront"] },
+//         { id:"secops", color:"#ef4444", gradient:"linear-gradient(135deg,#ef4444,#dc2626)", glow:"rgba(239,68,68,0.25)", bg:isDark?"rgba(239,68,68,0.1)":"rgba(239,68,68,0.08)",
+//             icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
+//             title:"SecOps", tagline:"Security Operations", desc:"Detect threats, scan vulnerabilities and audit IAM policies across your entire cloud estate.", features:["Threat detection","Vulnerability scanning","Compliance reports"] },
+//         { id:"finops", color:"#10b981", gradient:"linear-gradient(135deg,#10b981,#059669)", glow:"rgba(16,185,129,0.25)", bg:isDark?"rgba(16,185,129,0.1)":"rgba(16,185,129,0.08)",
+//             icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+//             title:"FinOps", tagline:"Cost Management", desc:"Track and optimise cloud spending with budget alerts, cost allocation and savings recommendations.", features:["Cost analysis by service","Budget alerts","Savings recommendations"] },
+//         { id:"aiops", color:"#8b5cf6", gradient:"linear-gradient(135deg,#8b5cf6,#7c3aed)", glow:"rgba(139,92,246,0.25)", bg:isDark?"rgba(139,92,246,0.1)":"rgba(139,92,246,0.08)",
+//             icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>,
+//             title:"AIOps", tagline:"AI-Powered Operations", desc:"Leverage machine learning to detect anomalies, predict incidents and auto-remediate issues.", features:["Anomaly detection","Predictive analytics","Auto-remediation"] },
+//         { id:"rfp", color:"#f59e0b", gradient:"linear-gradient(135deg,#f59e0b,#d97706)", glow:"rgba(245,158,11,0.25)", bg:isDark?"rgba(245,158,11,0.1)":"rgba(245,158,11,0.08)",
+//             icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
+//             title:"RFP Generator", tagline:"Document Automation", desc:"Generate professional RFP documents from live cloud infrastructure data using AI templates.", features:["AI-powered templates","PDF export","Live cloud data"] },
+//     ];
+//
+//     const stats = [
+//         { value:"20+",  label:"AWS Regions",      icon:"🌐", color:"#6366f1" },
+//         { value:"18+",  label:"Resource Types",   icon:"📦", color:"#8b5cf6" },
+//         { value:"100%", label:"Alert Automation", icon:"⚡", color:"#10b981" },
+//         { value:"5",    label:"Integrated Tools", icon:"🔧", color:"#f59e0b" },
+//     ];
+//
+//     // ── Handlers ──────────────────────────────────────────────────────────────
+//     const doLogin = async () => {
+//         if (!loginEmail || !loginPassword) { setLoginError("Please enter your email and password."); return; }
+//         setLoginLoading(true); setLoginError('');
+//         try {
+//             if (handleLogin)     await handleLogin(loginEmail, loginPassword);
+//             else if (onLogin)    await onLogin(loginEmail, loginPassword);
+//             try {
+//                 if (rememberMe) { localStorage.setItem('cloudops-rememberedEmail', loginEmail); localStorage.setItem('cloudops-rememberMe','true'); }
+//                 else { localStorage.removeItem('cloudops-rememberedEmail'); localStorage.removeItem('cloudops-rememberMe'); }
+//             } catch {}
+//             setAuthMode(null);
+//         } catch(err) {
+//             setLoginError(err.message || "Invalid email or password.");
+//         } finally { setLoginLoading(false); }
+//     };
+//
+//     const doRegister = async () => {
+//         if (!regEmail || !regPassword || !regConfirm) { setRegError("Please fill in all fields."); return; }
+//         if (regPassword.length < 6) { setRegError("Password must be at least 6 characters."); return; }
+//         if (regPassword !== regConfirm) { setRegError("Passwords do not match."); return; }
+//         setRegLoading(true); setRegError('');
+//         try {
+//             if (handleRegister)      await handleRegister(regEmail, regPassword);
+//             else if (onRegister)     await onRegister(regEmail, regPassword);
+//             setAuthMode(null);
+//         } catch(err) {
+//             setRegError(err.message || "Registration failed. Please try again.");
+//         } finally { setRegLoading(false); }
+//     };
+//
+//     const openLogin    = () => { setLoginError(''); setLoginPassword(''); setAuthMode('login'); };
+//     const openRegister = () => { setRegError(''); setRegEmail(''); setRegPassword(''); setRegConfirm(''); setAuthMode('register'); };
+//
+//     // ── Shared input styles ───────────────────────────────────────────────────
+//     const inp = {
+//         width:"100%", padding:"11px 14px", borderRadius:10,
+//         background:t.inputBg, border:`1.5px solid ${t.inputBorder}`,
+//         color:t.text, fontSize:14, outline:"none",
+//         fontFamily:"'DM Sans',sans-serif", boxSizing:"border-box",
+//         transition:"border-color 0.2s",
+//     };
+//     const lbl = { fontSize:12, fontWeight:600, color:t.textSub, marginBottom:6, display:"block", letterSpacing:"0.02em" };
+//
+//     const ErrBox = ({ msg }) => msg ? (
+//         <div style={{ background:t.errBg, border:`1px solid ${t.errBorder}`, borderRadius:9, padding:"10px 14px", fontSize:13, color:"#ef4444", marginBottom:16, display:"flex", gap:8, alignItems:"center" }}>
+//             <span>&#9888;</span> {msg}
+//         </div>
+//     ) : null;
+//
+//     // ── Auth overlay ──────────────────────────────────────────────────────────
+//
+//
+//     // ── Main render ───────────────────────────────────────────────────────────
+//     return (
+//         <div style={{ minHeight:"100vh", background:t.bg, fontFamily:"'DM Sans',system-ui,sans-serif", color:t.text, overflowX:"hidden", transition:"background 0.35s,color 0.35s" }}>
+//
+//             <style>{`
+//                 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap');
+//                 html,body { overflow-x:hidden; margin:0; }
+//                 @keyframes slideUp { from{opacity:0;transform:translateY(28px) scale(0.96)} to{opacity:1;transform:translateY(0) scale(1)} }
+//                 @keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:0.45} }
+//                 .glow-orb { position:absolute; border-radius:50%; filter:blur(90px); pointer-events:none; }
+//                 .pcard { transition:transform 0.3s ease,box-shadow 0.3s ease; }
+//                 .pcard:hover { transform:translateY(-6px) !important; box-shadow:0 20px 56px rgba(0,0,0,0.22) !important; }
+//             `}</style>
+//
+//             {authMode && (
+//                 <AuthOverlay
+//                     authMode={authMode}
+//                     setAuthMode={setAuthMode}
+//                     isDark={isDark}
+//                     t={t}
+//
+//                     loginEmail={loginEmail}
+//                     setLoginEmail={setLoginEmail}
+//                     loginPassword={loginPassword}
+//                     setLoginPassword={setLoginPassword}
+//                     loginError={loginError}
+//                     loginLoading={loginLoading}
+//                     rememberMe={rememberMe}
+//                     setRememberMe={setRememberMe}
+//                     showLoginPass={showLoginPass}
+//                     setShowLoginPass={setShowLoginPass}
+//
+//                     regEmail={regEmail}
+//                     setRegEmail={setRegEmail}
+//                     regPassword={regPassword}
+//                     setRegPassword={setRegPassword}
+//                     regConfirm={regConfirm}
+//                     setRegConfirm={setRegConfirm}
+//                     regError={regError}
+//                     regLoading={regLoading}
+//                     showRegPass={showRegPass}
+//                     setShowRegPass={setShowRegPass}
+//                     showRegConfirm={showRegConfirm}
+//                     setShowRegConfirm={setShowRegConfirm}
+//
+//                     doLogin={doLogin}
+//                     doRegister={doRegister}
+//                 />
+//             )}
+//
+//             <div className="glow-orb" style={{ width:700, height:700, background:"#6366f1", opacity:isDark?0.16:0.07, top:-280, left:-180 }} />
+//             <div className="glow-orb" style={{ width:500, height:500, background:"#8b5cf6", opacity:isDark?0.13:0.05, top:150, right:-160 }} />
+//
+//             {/* ── NAVBAR ── */}
+//             <nav style={{ position:"sticky", top:0, zIndex:100, background:t.navBg, backdropFilter:"blur(24px) saturate(180%)", borderBottom:`1px solid ${t.navBorder}`, padding:"0 48px", height:66, display:"flex", alignItems:"center", justifyContent:"space-between", transition:"background 0.35s,border-color 0.35s" }}>
+//                 <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+//                     <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+//                         <div style={{ width:36, height:36, background:"linear-gradient(135deg,#6366f1,#4f46e5)", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 16px rgba(99,102,241,0.45)" }}>
+//                             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+//                         </div>
+//                         <span style={{ fontSize:17, fontWeight:700, fontFamily:"'Syne',sans-serif", letterSpacing:"-0.025em", color:t.text }}>OmniOps</span>
+//                     </div>
+//                     <div style={{ width:1, height:22, background:t.border, margin:"0 4px" }} />
+//                     {/* FIX: use color on parent span instead of React.cloneElement */}
+//                     <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+//                         {products.map(p => (
+//                             <div key={p.id} style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 11px", borderRadius:7, fontSize:11.5, fontWeight:600, color:p.color, background:`${p.color}0f`, border:`1px solid ${p.color}28`, cursor:"default" }}>
+//                                 <span style={{ display:"flex", color:p.color }}>{p.icon}</span>
+//                                 {p.title}
+//                             </div>
+//                         ))}
+//                     </div>
+//                 </div>
+//
+//                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+//                     <button onClick={() => setIsDark(!isDark)} style={{ width:38, height:38, borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", background:t.surface, border:`1px solid ${t.border}`, cursor:"pointer", transition:"all 0.2s" }}>
+//                         {isDark
+//                             ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={t.textSub} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+//                             : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={t.textSub} strokeWidth="2" strokeLinecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+//                         }
+//                     </button>
+//                     <div style={{ width:1, height:22, background:t.border }} />
+//                     <button onClick={openLogin} style={{ padding:"8px 18px", borderRadius:10, fontSize:13.5, fontWeight:600, background:"transparent", color:t.textSub, border:`1px solid ${t.border}`, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all 0.2s" }}>Sign In</button>
+//                     <button onClick={openRegister} style={{ padding:"8px 20px", borderRadius:10, fontSize:13.5, fontWeight:700, background:"linear-gradient(135deg,#6366f1,#4f46e5)", color:"white", border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", boxShadow:"0 4px 18px rgba(99,102,241,0.42)" }}>Get Started →</button>
+//                 </div>
+//             </nav>
+//
+//             {/* ── HERO ── */}
+//             <section style={{ textAlign:"center", padding:"112px 24px 90px", position:"relative" }}>
+//                 <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:isDark?"rgba(99,102,241,0.1)":"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.28)", borderRadius:100, padding:"6px 18px", fontSize:12, fontWeight:600, color:"#818cf8", marginBottom:32, letterSpacing:"0.04em", textTransform:"uppercase" }}>
+//                     <span style={{ width:7, height:7, borderRadius:"50%", background:"#6366f1", boxShadow:"0 0 10px #6366f1", display:"inline-block", animation:"pulse 2s ease-in-out infinite" }} />
+//                     All-in-One Cloud Operations Platform
+//                 </div>
+//                 <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:"clamp(44px,6vw,72px)", fontWeight:800, letterSpacing:"-0.045em", lineHeight:1.04, margin:"0 auto 28px", maxWidth:800, color:t.text }}>
+//                     One platform for<br />
+//                     <span style={{ background:"linear-gradient(135deg,#6366f1 0%,#8b5cf6 50%,#06b6d4 100%)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>
+//                         all your cloud ops
+//                     </span>
+//                 </h1>
+//                 <p style={{ fontSize:18, color:t.textSub, maxWidth:540, margin:"0 auto 44px", lineHeight:1.75, fontWeight:300 }}>
+//                     CloudOps, SecOps, FinOps, AIOps and RFP automation —
+//                     everything your team needs to manage, secure and optimise your cloud.
+//                 </p>
+//                 <div style={{ display:"flex", gap:14, justifyContent:"center", alignItems:"center", marginBottom:80 }}>
+//                     <button onClick={openRegister} style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"14px 30px", borderRadius:12, background:"linear-gradient(135deg,#6366f1,#4f46e5)", color:"white", fontFamily:"'DM Sans',sans-serif", fontSize:15, fontWeight:700, border:"none", cursor:"pointer", boxShadow:"0 10px 36px rgba(99,102,241,0.45)" }}>
+//                         Get Started Free <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+//                     </button>
+//                     <button onClick={openLogin} style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"14px 28px", borderRadius:12, background:t.surface, color:t.textSub, fontFamily:"'DM Sans',sans-serif", fontSize:15, fontWeight:600, border:`1px solid ${t.border}`, cursor:"pointer" }}>
+//                         Sign In
+//                     </button>
+//                 </div>
+//                 <div style={{ display:"flex", gap:16, justifyContent:"center", flexWrap:"wrap", maxWidth:760, margin:"0 auto" }}>
+//                     {stats.map(s => (
+//                         <div key={s.label} style={{ flex:"1", minWidth:155, background:t.surface, border:`1px solid ${t.border}`, borderRadius:18, padding:"24px 20px", textAlign:"center", boxShadow:t.cardShadow, position:"relative", overflow:"hidden", transition:"all 0.3s" }}>
+//                             <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:`linear-gradient(90deg,transparent,${s.color}70,transparent)` }} />
+//                             <div style={{ fontSize:28, marginBottom:10 }}>{s.icon}</div>
+//                             <div style={{ fontSize:32, fontWeight:800, fontFamily:"'Syne',sans-serif", letterSpacing:"-0.04em", color:s.color, lineHeight:1, marginBottom:6 }}>{s.value}</div>
+//                             <div style={{ fontSize:12.5, color:t.textSub, fontWeight:500 }}>{s.label}</div>
+//                         </div>
+//                     ))}
+//                 </div>
+//             </section>
+//
+//             {/* ── PRODUCTS ── */}
+//             <section style={{ padding:"60px 48px 90px", maxWidth:1240, margin:"0 auto" }}>
+//                 <div style={{ textAlign:"center", marginBottom:60 }}>
+//                     <div style={{ fontSize:10.5, fontWeight:700, color:t.textFaint, textTransform:"uppercase", letterSpacing:"0.16em", marginBottom:14 }}>Platform Suite</div>
+//                     <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:42, fontWeight:800, letterSpacing:"-0.035em", marginBottom:14, lineHeight:1.12, color:t.text }}>Five powerful tools.<br />One unified platform.</h2>
+//                     <p style={{ fontSize:16, color:t.textSub, maxWidth:450, margin:"0 auto", lineHeight:1.75, fontWeight:300 }}>Each tool is built for a specific cloud operations use case, all from a single login.</p>
+//                 </div>
+//                 <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:18, marginBottom:18 }}>
+//                     {products.slice(0,3).map(p => (
+//                         <div key={p.id} className="pcard" style={{ background:t.surface, border:`1px solid ${t.border}`, borderRadius:22, padding:30, position:"relative", overflow:"hidden", boxShadow:t.cardShadow }}>
+//                             <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:p.gradient }} />
+//                             <div style={{ width:50, height:50, borderRadius:14, background:p.bg, border:`1px solid ${p.color}28`, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:20, color:p.color }}>{p.icon}</div>
+//                             <div style={{ fontSize:19, fontWeight:700, fontFamily:"'Syne',sans-serif", marginBottom:4, color:t.text }}>{p.title}</div>
+//                             <div style={{ fontSize:10.5, fontWeight:700, color:p.color, marginBottom:14, textTransform:"uppercase", letterSpacing:"0.1em" }}>{p.tagline}</div>
+//                             <div style={{ fontSize:13.5, color:t.textSub, lineHeight:1.75, marginBottom:22, fontWeight:300 }}>{p.desc}</div>
+//                             <div style={{ display:"flex", flexDirection:"column", gap:9, marginBottom:22 }}>
+//                                 {p.features.map(f => (
+//                                     <div key={f} style={{ display:"flex", alignItems:"center", gap:10, fontSize:12.5, color:t.textSub }}>
+//                                         <div style={{ width:18, height:18, borderRadius:"50%", background:p.bg, border:`1px solid ${p.color}35`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+//                                             <div style={{ width:6, height:6, borderRadius:"50%", background:p.color }} />
+//                                         </div>
+//                                         {f}
+//                                     </div>
+//                                 ))}
+//                             </div>
+//                             {p.id !== "cloudops"
+//                                 ? <div style={{ display:"inline-flex", alignItems:"center", gap:6, background:`${p.color}12`, border:`1px solid ${p.color}28`, borderRadius:20, padding:"5px 14px", fontSize:11, fontWeight:700, color:p.color }}>&#x1F680; Coming Soon</div>
+//                                 : <button onClick={openRegister} style={{ display:"inline-flex", alignItems:"center", gap:6, background:p.gradient, border:"none", borderRadius:10, padding:"9px 18px", fontSize:13, fontWeight:700, color:"white", cursor:"pointer", boxShadow:`0 6px 20px ${p.glow}` }}>Get Started →</button>
+//                             }
+//                         </div>
+//                     ))}
+//                 </div>
+//                 <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:18, maxWidth:820, margin:"0 auto" }}>
+//                     {products.slice(3).map(p => (
+//                         <div key={p.id} className="pcard" style={{ background:t.surface, border:`1px solid ${t.border}`, borderRadius:22, padding:28, position:"relative", overflow:"hidden", boxShadow:t.cardShadow }}>
+//                             <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:p.gradient }} />
+//                             <div style={{ display:"flex", alignItems:"flex-start", gap:18 }}>
+//                                 <div style={{ width:50, height:50, borderRadius:14, background:p.bg, border:`1px solid ${p.color}28`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, color:p.color }}>{p.icon}</div>
+//                                 <div style={{ flex:1 }}>
+//                                     <div style={{ fontSize:17, fontWeight:700, fontFamily:"'Syne',sans-serif", marginBottom:3, color:t.text }}>{p.title}</div>
+//                                     <div style={{ fontSize:10.5, fontWeight:700, color:p.color, marginBottom:10, textTransform:"uppercase", letterSpacing:"0.1em" }}>{p.tagline}</div>
+//                                     <div style={{ fontSize:13, color:t.textSub, lineHeight:1.75, marginBottom:14, fontWeight:300 }}>{p.desc}</div>
+//                                     <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
+//                                         {p.features.map(f => <div key={f} style={{ display:"inline-flex", alignItems:"center", gap:5, background:`${p.color}0e`, border:`1px solid ${p.color}22`, borderRadius:6, padding:"3px 10px", fontSize:11, color:p.color, fontWeight:600 }}>{f}</div>)}
+//                                     </div>
+//                                     <div style={{ marginTop:14, display:"inline-flex", alignItems:"center", gap:6, background:`${p.color}12`, border:`1px solid ${p.color}28`, borderRadius:20, padding:"4px 12px", fontSize:11, fontWeight:700, color:p.color }}>&#x1F680; Coming Soon</div>
+//                                 </div>
+//                             </div>
+//                         </div>
+//                     ))}
+//                 </div>
+//             </section>
+//
+//             {/* ── HOW IT WORKS ── */}
+//             <section style={{ padding:"90px 48px", borderTop:`1px solid ${t.secBorder}`, borderBottom:`1px solid ${t.secBorder}`, background:t.secBg, position:"relative", transition:"all 0.35s" }}>
+//                 <div className="glow-orb" style={{ width:500, height:500, background:"#6366f1", opacity:isDark?0.13:0.05, bottom:-200, right:-100 }} />
+//                 <div style={{ maxWidth:920, margin:"0 auto", textAlign:"center" }}>
+//                     <div style={{ fontSize:10.5, fontWeight:700, color:t.textFaint, textTransform:"uppercase", letterSpacing:"0.16em", marginBottom:14 }}>How it works</div>
+//                     <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:38, fontWeight:800, letterSpacing:"-0.035em", marginBottom:56, lineHeight:1.12, color:t.text }}>Up and running in 3 steps</h2>
+//                     <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:22, position:"relative" }}>
+//                         <div style={{ position:"absolute", top:42, left:"18%", right:"18%", height:1, background:"linear-gradient(90deg,rgba(99,102,241,0),rgba(99,102,241,0.35),rgba(99,102,241,0))", zIndex:0 }} />
+//                         {[
+//                             { n:"01", title:"Register",       desc:"Create your free account in seconds. No credit card required.", emoji:"👤" },
+//                             { n:"02", title:"Connect Cloud",  desc:"Securely link your AWS, GCP or Azure account with one click.",   emoji:"☁️" },
+//                             { n:"03", title:"Scan & Monitor", desc:"Get real-time resource visibility and instant alert automation.", emoji:"📊" },
+//                         ].map(s => (
+//                             <div key={s.n} style={{ background:t.surface, border:`1px solid ${t.border}`, borderRadius:18, padding:"32px 26px", textAlign:"center", position:"relative", zIndex:1, boxShadow:t.cardShadow }}>
+//                                 <div style={{ width:60, height:60, borderRadius:"50%", background:"linear-gradient(135deg,#6366f1,#4f46e5)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 18px", fontSize:24, boxShadow:"0 10px 28px rgba(99,102,241,0.42)" }}>{s.emoji}</div>
+//                                 <div style={{ fontSize:10, fontWeight:800, color:"#6366f1", letterSpacing:"0.12em", marginBottom:10, textTransform:"uppercase" }}>{s.n}</div>
+//                                 <div style={{ fontSize:17, fontWeight:700, fontFamily:"'Syne',sans-serif", marginBottom:10, color:t.text }}>{s.title}</div>
+//                                 <div style={{ fontSize:13.5, color:t.textSub, lineHeight:1.7, fontWeight:300 }}>{s.desc}</div>
+//                             </div>
+//                         ))}
+//                     </div>
+//                 </div>
+//             </section>
+//
+//             {/* ── CTA ── */}
+//             <section style={{ textAlign:"center", padding:"110px 24px", position:"relative", overflow:"hidden" }}>
+//                 <div className="glow-orb" style={{ width:700, height:400, background:"#6366f1", opacity:isDark?0.13:0.05, bottom:-120, left:"50%", transform:"translateX(-50%)" }} />
+//                 <div style={{ position:"relative", zIndex:1 }}>
+//                     <div style={{ fontSize:10.5, fontWeight:700, color:t.textFaint, textTransform:"uppercase", letterSpacing:"0.16em", marginBottom:16 }}>Ready to go?</div>
+//                     <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:"clamp(36px,5vw,54px)", fontWeight:800, letterSpacing:"-0.04em", marginBottom:18, lineHeight:1.08, color:t.text }}>Take control of<br />your entire cloud</h2>
+//                     <p style={{ fontSize:17, color:t.textSub, fontWeight:300, maxWidth:440, margin:"0 auto 40px" }}>Join thousands of teams managing their cloud operations from one place.</p>
+//                     <div style={{ display:"flex", gap:14, justifyContent:"center" }}>
+//                         <button onClick={openRegister} style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"15px 34px", borderRadius:13, background:"linear-gradient(135deg,#6366f1,#4f46e5)", color:"white", fontFamily:"'DM Sans',sans-serif", fontSize:16, fontWeight:700, border:"none", cursor:"pointer", boxShadow:"0 12px 40px rgba(99,102,241,0.48)" }}>
+//                             Create Free Account <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+//                         </button>
+//                         <button onClick={openLogin} style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"15px 28px", borderRadius:13, background:t.surface, color:t.textSub, fontFamily:"'DM Sans',sans-serif", fontSize:16, fontWeight:600, border:`1px solid ${t.border}`, cursor:"pointer" }}>Sign In</button>
+//                     </div>
+//                 </div>
+//             </section>
+//
+//             {/* ── FOOTER ── */}
+//             <footer style={{ borderTop:`1px solid ${t.secBorder}`, padding:"28px 48px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+//                 <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+//                     <div style={{ width:28, height:28, background:"linear-gradient(135deg,#6366f1,#4f46e5)", borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center" }}>
+//                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+//                     </div>
+//                     <span style={{ fontSize:14, fontWeight:700, fontFamily:"'Syne',sans-serif", color:t.text }}>OmniOps</span>
+//                 </div>
+//                 <div style={{ display:"flex", gap:22 }}>
+//                     {products.map(p => <span key={p.id} style={{ fontSize:12, color:p.color, fontWeight:600, opacity:0.65 }}>{p.title}</span>)}
+//                 </div>
+//                 <div style={{ fontSize:12, color:t.footerText }}>&#169; 2026 OmniOps Platform. All rights reserved.</div>
+//             </footer>
+//         </div>
+//     );
+// };
 
 // ── Login Page ─────────────────────────────────────────────────────────────────
 const LoginPage = ({ onLogin, onRegister }) => {
@@ -1542,6 +1542,7 @@ const EditCredentialsPage = ({ onSave, onBack, userEmail }) => {
 const AccountSelectionPage = ({ onSelectAccount, onAddNew, onBack }) => {
     const [accounts, setAccounts] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [search, setSearch] = useState("");
 
     useEffect(() => {
         const fetchAccounts = async () => {
@@ -1562,13 +1563,37 @@ const AccountSelectionPage = ({ onSelectAccount, onAddNew, onBack }) => {
         fetchAccounts();
     }, []);
 
+    const filtered = accounts.filter(a =>
+        a.accountName?.toLowerCase().includes(search.toLowerCase()) ||
+        a.accountId?.toLowerCase().includes(search.toLowerCase()) ||
+        a.accessKey?.toLowerCase().includes(search.toLowerCase())
+    );
+
     return (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "var(--bg)", padding: 24 }}>
-            <div style={{ width: "100%", maxWidth: 500 }}>
+            <div style={{ width: "100%", maxWidth: 860 }}>
                 <div style={{ textAlign: "center", marginBottom: 32 }}>
                     <div style={{ width: 56, height: 56, background: "#fff3e0", borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 28 }}>☁</div>
                     <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.03em", marginBottom: 6 }}>Select AWS Account</div>
                     <div style={{ fontSize: 13, color: "var(--text2)" }}>Choose an existing account or add a new one</div>
+                </div>
+
+                {/* Search + Add button row */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12 }}>
+                    <input
+                        className="form-input"
+                        placeholder="Search accounts..."
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        style={{ fontSize: 13, maxWidth: 320 }}
+                    />
+                    <button
+                        className="btn"
+                        style={{ fontSize: 12, color: "var(--accent)", borderColor: "var(--accent)", whiteSpace: "nowrap" }}
+                        onClick={onAddNew}
+                    >
+                        + Add Cloud Account
+                    </button>
                 </div>
 
                 {loading ? (
@@ -1576,56 +1601,54 @@ const AccountSelectionPage = ({ onSelectAccount, onAddNew, onBack }) => {
                         <Spinner /> <span style={{ color: "var(--text2)", fontSize: 13 }}>Loading accounts…</span>
                     </div>
                 ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
-                        {accounts.map((acc) => (
-                            <div
-                                key={acc.accessKey}
-                                onClick={() => onSelectAccount(acc)}
-                                style={{
-                                    background: "var(--surface)", border: "1px solid var(--border)",
-                                    borderRadius: 12, padding: "16px 20px", cursor: "pointer",
-                                    display: "flex", alignItems: "center", gap: 16,
-                                    transition: "all 0.15s",
-                                }}
-                                onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.background = "var(--accent-bg)"; }}
-                                onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--surface)"; }}
-                            >
-                                <div style={{ width: 40, height: 40, background: "#fff3e0", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>
-                                    ☁
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                    <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{acc.accountName}</div>
-                                    <div style={{ fontSize: 11, color: "var(--text3)", fontFamily: "monospace" }}>
-                                        {acc.accountId !== 'Unknown' ? acc.accountId : acc.accessKey.slice(0, 8) + '…'}
-                                    </div>
-                                </div>
-                                <span style={{ color: "var(--accent)", fontSize: 18 }}>→</span>
-                            </div>
-                        ))}
-
-                        <div
-                            onClick={onAddNew}
-                            style={{
-                                background: "var(--surface)", border: "2px dashed var(--border)",
-                                borderRadius: 12, padding: "16px 20px", cursor: "pointer",
-                                display: "flex", alignItems: "center", gap: 16,
-                                transition: "all 0.15s",
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; }}
-                            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; }}
-                        >
-                            <div style={{ width: 40, height: 40, background: "var(--surface2)", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>
-                                +
-                            </div>
-                            <div>
-                                <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>Add New AWS Account</div>
-                                <div style={{ fontSize: 11, color: "var(--text3)" }}>Connect another AWS account</div>
-                            </div>
-                        </div>
+                    <div style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                            <thead>
+                            <tr style={{ background: "var(--surface2)" }}>
+                                {["Cloud", "Account Name", "Key / ID", "Secret", "Subscription / Account ID", "Action"].map(h => (
+                                    <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid var(--border)" }}>{h}</th>
+                                ))}
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {filtered.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} style={{ padding: "40px 20px", textAlign: "center", color: "var(--text3)", fontSize: 13 }}>
+                                        {search ? `No accounts match "${search}"` : "No cloud accounts connected"}
+                                    </td>
+                                </tr>
+                            ) : filtered.map((acc) => (
+                                <tr key={acc.accessKey} style={{ borderBottom: "1px solid var(--border)", background: "var(--surface)", transition: "background 0.12s", cursor: "pointer" }}
+                                    onMouseEnter={e => e.currentTarget.style.background = "var(--accent-bg)"}
+                                    onMouseLeave={e => e.currentTarget.style.background = "var(--surface)"}
+                                >
+                                    <td style={{ padding: "12px 14px" }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                            <div style={{ width: 24, height: 24, background: "#fff3e0", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>☁</div>
+                                            <span style={{ fontSize: 12, fontWeight: 500 }}>AWS</span>
+                                        </div>
+                                    </td>
+                                    <td style={{ padding: "12px 14px", fontWeight: 600, fontSize: 13 }}>{acc.accountName || "AWS Account"}</td>
+                                    <td style={{ padding: "12px 14px", fontFamily: "monospace", fontSize: 12, color: "var(--text2)" }}>{acc.accessKey ? acc.accessKey.slice(0, 12) + "…" : "—"}</td>
+                                    <td style={{ padding: "12px 14px", fontFamily: "monospace", fontSize: 13, color: "var(--text2)", letterSpacing: 2 }}>••••••••</td>
+                                    <td style={{ padding: "12px 14px", fontSize: 12, color: "var(--text2)" }}>{acc.accountId && acc.accountId !== "Unknown" ? acc.accountId : "—"}</td>
+                                    <td style={{ padding: "12px 14px" }}>
+                                        <button
+                                            className="btn btn-sm"
+                                            style={{ fontSize: 11, color: "var(--accent)", borderColor: "var(--accent)", fontWeight: 600 }}
+                                            onClick={() => onSelectAccount(acc)}
+                                        >
+                                            Select →
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                            </tbody>
+                        </table>
                     </div>
                 )}
 
-                <div style={{ textAlign: "center", marginTop: 8 }}>
+                <div style={{ textAlign: "center", marginTop: 16 }}>
                     <button className="btn btn-sm" onClick={onBack}>← Back</button>
                 </div>
             </div>
@@ -1786,6 +1809,9 @@ const AzureSetupGuidePage = ({ onContinue, onBack }) => {
 const AzureAccountSelectionPage = ({ onSelectAccount, onAddNew, onBack }) => {
     const [accounts, setAccounts] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [search, setSearch] = useState("");
+    const [page, setPage] = useState(1);
+    const PER_PAGE = 5;
 
     useEffect(() => {
         const loadAccounts = async () => {
@@ -1811,6 +1837,14 @@ const AzureAccountSelectionPage = ({ onSelectAccount, onAddNew, onBack }) => {
         </svg>
     );
 
+    const filtered = accounts.filter(a =>
+        a.accountName?.toLowerCase().includes(search.toLowerCase()) ||
+        a.subscriptionId?.toLowerCase().includes(search.toLowerCase()) ||
+        a.tenantId?.toLowerCase().includes(search.toLowerCase())
+    );
+    const totalPages = Math.ceil(filtered.length / PER_PAGE);
+    const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+
     return (
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:"var(--bg)", padding:24 }}>
             <div style={{ width:"100%", maxWidth:500 }}>
@@ -1820,46 +1854,76 @@ const AzureAccountSelectionPage = ({ onSelectAccount, onAddNew, onBack }) => {
                     <div style={{ fontSize:13, color:"var(--text2)" }}>Choose a saved account or add a new one</div>
                 </div>
 
+                <input
+                    className="form-input"
+                    placeholder="Search accounts..."
+                    value={search}
+                    onChange={e => { setSearch(e.target.value); setPage(1); }}
+                    style={{ marginBottom: 12, fontSize: 13 }}
+                />
+
                 {loading ? (
                     <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:12, padding:40 }}>
                         <Spinner /> <span style={{ color:"var(--text2)", fontSize:13 }}>Loading accounts…</span>
                     </div>
                 ) : (
-                    <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:16 }}>
-                        {accounts.length === 0 && (
-                            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"32px 24px", textAlign:"center", color:"var(--text2)", fontSize:13 }}>
-                                No Azure accounts saved yet. Add one below.
-                            </div>
-                        )}
-                        {accounts.map((acc) => (
-                            <div key={acc.subscriptionId}
-                                 onClick={() => onSelectAccount(acc)}
-                                 style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"16px 20px", cursor:"pointer", display:"flex", alignItems:"center", gap:16, transition:"all 0.15s" }}
-                                 onMouseEnter={e => { e.currentTarget.style.borderColor="#0089D6"; e.currentTarget.style.background="#e6f2ff"; }}
-                                 onMouseLeave={e => { e.currentTarget.style.borderColor="var(--border)"; e.currentTarget.style.background="var(--surface)"; }}
-                            >
-                                <div style={{ width:40, height:40, background:"#e6f2ff", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{azureIcon}</div>
-                                <div style={{ flex:1 }}>
-                                    <div style={{ fontWeight:600, fontSize:14, marginBottom:2 }}>{acc.accountName || "Azure Account"}</div>
-                                    <div style={{ fontSize:11, color:"var(--text3)", fontFamily:"monospace" }}>Sub: {acc.subscriptionId ? acc.subscriptionId.slice(0,18)+"…" : "—"}</div>
-                                    <div style={{ fontSize:11, color:"var(--text3)", fontFamily:"monospace" }}>Tenant: {acc.tenantId ? acc.tenantId.slice(0,18)+"…" : "—"}</div>
+                    <>
+                        <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:16 }}>
+                            {accounts.length === 0 && !search && (
+                                <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"32px 24px", textAlign:"center", color:"var(--text2)", fontSize:13 }}>
+                                    No Azure accounts saved yet. Add one below.
                                 </div>
-                                <span style={{ color:"#0089D6", fontSize:18 }}>→</span>
-                            </div>
-                        ))}
-                        <div onClick={onAddNew}
-                             style={{ background:"var(--surface)", border:"2px dashed var(--border)", borderRadius:12, padding:"16px 20px", cursor:"pointer", display:"flex", alignItems:"center", gap:16, transition:"all 0.15s" }}
-                             onMouseEnter={e => e.currentTarget.style.borderColor="#0089D6"}
-                             onMouseLeave={e => e.currentTarget.style.borderColor="var(--border)"}
-                        >
-                            <div style={{ width:40, height:40, background:"var(--surface2)", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>+</div>
-                            <div>
-                                <div style={{ fontWeight:600, fontSize:14, marginBottom:2 }}>Add New Azure Account</div>
-                                <div style={{ fontSize:11, color:"var(--text3)" }}>Connect another Azure subscription</div>
+                            )}
+
+                            {filtered.length === 0 && search && (
+                                <div style={{ textAlign:"center", padding:24, color:"var(--text3)", fontSize:13 }}>No accounts match "{search}"</div>
+                            )}
+
+                            {paginated.map((acc) => (
+                                <div key={acc.subscriptionId}
+                                     onClick={() => onSelectAccount(acc)}
+                                     style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"16px 20px", cursor:"pointer", display:"flex", alignItems:"center", gap:16, transition:"all 0.15s" }}
+                                     onMouseEnter={e => { e.currentTarget.style.borderColor="#0089D6"; e.currentTarget.style.background="#e6f2ff"; }}
+                                     onMouseLeave={e => { e.currentTarget.style.borderColor="var(--border)"; e.currentTarget.style.background="var(--surface)"; }}
+                                >
+                                    <div style={{ width:40, height:40, background:"#e6f2ff", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{azureIcon}</div>
+                                    <div style={{ flex:1 }}>
+                                        <div style={{ fontWeight:600, fontSize:14, marginBottom:2 }}>{acc.accountName || "Azure Account"}</div>
+                                        <div style={{ fontSize:11, color:"var(--text3)", fontFamily:"monospace" }}>Sub: {acc.subscriptionId ? acc.subscriptionId.slice(0,18)+"…" : "—"}</div>
+                                        <div style={{ fontSize:11, color:"var(--text3)", fontFamily:"monospace" }}>Tenant: {acc.tenantId ? acc.tenantId.slice(0,18)+"…" : "—"}</div>
+                                    </div>
+                                    <span style={{ color:"#0089D6", fontSize:18 }}>→</span>
+                                </div>
+                            ))}
+
+                            <div onClick={onAddNew}
+                                 style={{ background:"var(--surface)", border:"2px dashed var(--border)", borderRadius:12, padding:"16px 20px", cursor:"pointer", display:"flex", alignItems:"center", gap:16, transition:"all 0.15s" }}
+                                 onMouseEnter={e => e.currentTarget.style.borderColor="#0089D6"}
+                                 onMouseLeave={e => e.currentTarget.style.borderColor="var(--border)"}
+                            >
+                                <div style={{ width:40, height:40, background:"var(--surface2)", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>+</div>
+                                <div>
+                                    <div style={{ fontWeight:600, fontSize:14, marginBottom:2 }}>Add New Azure Account</div>
+                                    <div style={{ fontSize:11, color:"var(--text3)" }}>Connect another Azure subscription</div>
+                                </div>
                             </div>
                         </div>
-                    </div>
+
+                        {totalPages > 1 && (
+                            <div style={{ display:"flex", justifyContent:"center", gap:6, marginTop:8 }}>
+                                <button className="btn btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>←</button>
+                                {Array.from({ length: totalPages }, (_, i) => (
+                                    <button key={i} className="btn btn-sm" onClick={() => setPage(i + 1)}
+                                            style={{ background: page === i + 1 ? "#0089D6" : "", color: page === i + 1 ? "white" : "" }}>
+                                        {i + 1}
+                                    </button>
+                                ))}
+                                <button className="btn btn-sm" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>→</button>
+                            </div>
+                        )}
+                    </>
                 )}
+
                 <div style={{ textAlign:"center", marginTop:8 }}>
                     <button className="btn btn-sm" onClick={onBack}>← Back</button>
                 </div>
@@ -2315,16 +2379,6 @@ const SetupGuidePage = ({ onContinue, onBack, isNewUser }) => {
         }
     };
 
-    // Download CloudFormation template from public folder
-    const downloadCloudFormation = () => {
-        const link = document.createElement("a");
-        link.href = "/cloudops-discovery.json";
-        link.download = "cloudops-discovery.json";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-
     const steps = [
         {
             number: "1",
@@ -2357,20 +2411,6 @@ const SetupGuidePage = ({ onContinue, onBack, isNewUser }) => {
             ],
             showPolicy: true,
         },
-        {
-            number: "4",
-            title: "Auto-attach All Discovery Policies (Recommended)",
-            desc: "Use our CloudFormation template to automatically create and attach all 13 discovery policies to your IAM user in one click — no manual steps needed.",
-            details: [
-                "Download the CloudFormation template using the button below",
-                "Go to AWS Console → CloudFormation → Create Stack → With new resources",
-                "Choose existing template → Upload a template file → select the downloaded file → Next",
-                "Enter your IAM username exactly as it appears in AWS Console → Next → Next",
-                "Check the IAM capabilities checkbox → Create stack",
-                "Wait 2–3 minutes until status shows CREATE_COMPLETE → Done ✅",
-            ],
-            showDownload: true,
-        },
     ];
 
     return (
@@ -2391,23 +2431,16 @@ const SetupGuidePage = ({ onContinue, onBack, isNewUser }) => {
                 {steps.map((step, i) => (
                     <div key={i} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, padding: 24, marginBottom: 16 }}>
                         <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
-                            <div style={{ width: 32, height: 32, borderRadius: "50%", background: step.number === "4" ? "var(--green)" : "var(--accent)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
+                            <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--accent)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
                                 {step.number}
                             </div>
                             <div style={{ flex: 1 }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                                    <div style={{ fontWeight: 700, fontSize: 15 }}>{step.title}</div>
-                                    {step.number === "4" && (
-                                        <span style={{ background: "var(--green-bg)", color: "var(--green)", border: "1px solid var(--green)", borderRadius: 20, fontSize: 10, fontWeight: 700, padding: "2px 8px", letterSpacing: "0.04em" }}>
-                                            RECOMMENDED
-                                        </span>
-                                    )}
-                                </div>
+                                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{step.title}</div>
                                 <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 12 }}>{step.desc}</div>
 
                                 {step.details.map((d, j) => (
                                     <div key={j} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
-                                        <span style={{ color: step.number === "4" ? "var(--green)" : "var(--accent)", fontWeight: 700, fontSize: 13, marginTop: 1 }}>→</span>
+                                        <span style={{ color: "var(--accent)", fontWeight: 700, fontSize: 13, marginTop: 1 }}>→</span>
                                         <span style={{ fontSize: 13, color: "var(--text2)" }}>{d}</span>
                                     </div>
                                 ))}
@@ -2424,45 +2457,6 @@ const SetupGuidePage = ({ onContinue, onBack, isNewUser }) => {
                                         >
                                             {copied ? "✓ Copied!" : "Copy"}
                                         </button>
-                                    </div>
-                                )}
-
-                                {/* CloudFormation download */}
-                                {step.showDownload && (
-                                    <div style={{ marginTop: 16 }}>
-                                        {/* Info box */}
-                                        <div style={{ background: "var(--green-bg)", border: "1px solid var(--green)", borderRadius: 10, padding: "12px 16px", marginBottom: 14, fontSize: 12, color: "var(--green)" }}>
-                                            <div style={{ fontWeight: 700, marginBottom: 4 }}>What this template does:</div>
-                                            <div style={{ color: "var(--text2)", lineHeight: 1.6 }}>
-                                                Creates <strong>13 managed policies</strong> covering 200+ AWS services, groups them into a <strong>CloudOps-Discovery-Group</strong>, and automatically adds your IAM user to that group — all in one stack.
-                                            </div>
-                                        </div>
-
-                                        <button
-                                            onClick={downloadCloudFormation}
-                                            style={{
-                                                display: "flex", alignItems: "center", gap: 10,
-                                                background: "var(--green)", color: "white",
-                                                border: "none", borderRadius: 10,
-                                                padding: "12px 24px", fontSize: 14,
-                                                fontWeight: 600, cursor: "pointer",
-                                                width: "100%", justifyContent: "center",
-                                            }}
-                                            onMouseEnter={e => e.currentTarget.style.opacity = "0.9"}
-                                            onMouseLeave={e => e.currentTarget.style.opacity = "1"}
-                                        >
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                                <polyline points="7 10 12 15 17 10"/>
-                                                <line x1="12" y1="15" x2="12" y2="3"/>
-                                            </svg>
-                                            Download CloudFormation Template
-                                        </button>
-
-                                        {/* Warning note */}
-                                        <div style={{ marginTop: 10, fontSize: 11, color: "var(--text3)", textAlign: "center" }}>
-                                            ⚠ During stack creation, check <strong>"I acknowledge that AWS CloudFormation might create IAM resources"</strong>
-                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -6365,6 +6359,7 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
     const [appSection, setAppSection] = useState(initialSection || "main");
     const [sectionHistory, setSectionHistory] = useState([]);
     const [activeApp, setActiveApp] = useState("cloudops");
+    const [selectedAccountName, setSelectedAccountName] = useState(scanMeta?.accountName || "");
 
     const navigateTo = (newSection) => {
         setSectionHistory(prev => [...prev, appSection]);
@@ -6595,6 +6590,7 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
                             const restoredId = savedData.identity?.account_id || acc.accountId || "";
                             setAccountId(restoredId);
                             localStorage.setItem("cloudops-accountId", restoredId);
+                            setSelectedAccountName(savedMeta?.accountName || acc.accountName || "AWS Account");
                             onSetSelectedCloud("aws");
                             localStorage.setItem("cloudops-selectedCloud", "aws");
                             setSection("dashboard");
@@ -6698,6 +6694,7 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
                                 "";
                             setAccountId(restoredId);
                             localStorage.setItem("cloudops-accountId", restoredId);
+                            setSelectedAccountName(acc.accountName || "Azure Account");
                             onSetSelectedCloud("azure");
                             localStorage.setItem("cloudops-selectedCloud", "azure");
 
@@ -6819,6 +6816,8 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
                 return <AllResourcesSection awsData={awsData || {}} />;
             case "cognitive":
                 return <CognitiveServicesSection awsData={awsData || {}} />;
+            case "alerts":
+                return <AlertsSection accountId={accountId} />;
             case "tickets":
                 return <TicketsSection accountId={accountId} />;
             default:
@@ -7010,7 +7009,7 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", marginBottom: 1 }}>
-                                        {selectedCloud === "azure" ? "Azure" : "AWS"}
+                                        {selectedAccountName || scanMeta?.accountName || (selectedCloud === "azure" ? "Azure Account" : "AWS")}
                                     </div>
                                     <div style={{ fontSize: 10, color: accountId ? "var(--green)" : "var(--text3)", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
                                         <div style={{ width: 5, height: 5, borderRadius: "50%", background: accountId ? "var(--green)" : "var(--text3)", flexShrink: 0 }} />
@@ -7218,223 +7217,553 @@ const AppShell = ({ awsData, scanMeta, accountId, selectedCloud, userEmail, init
     );
 };
 
+// ─── DROP-IN REPLACEMENT for AdminPanel ──────────────────────────────────────
+// All original logic preserved exactly. Only styles + layout redesigned.
+// Light theme — industry grade.
+// ─────────────────────────────────────────────────────────────────────────────
+
 const ADMIN_STYLES = `
-  .ap-shell { display: flex; height: 100vh; overflow: hidden; }
-  .ap-icon-strip {
-    width: 52px; background: var(--surface); border-right: 1px solid var(--border);
-    display: flex; flex-direction: column; align-items: center; padding: 12px 0; gap: 4px; flex-shrink: 0;
-  }
-  .ap-logo-mark {
-    width: 32px; height: 32px; background: linear-gradient(135deg,#6366f1,#4f46e5);
-    border-radius: 9px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px;
-  }
-  .ap-icon-btn {
-    width: 38px; height: 38px; border-radius: 9px; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 3px; cursor: pointer; transition: background 0.15s;
-    border: none; background: transparent; color: var(--text2);
-  }
-  .ap-icon-btn.active { background: var(--accent-bg); border: 1.5px solid var(--accent); color: var(--accent); }
-  .ap-icon-btn:hover:not(.active) { background: var(--bg, #f5f6fa); }
-  .ap-icon-label { font-size: 9px; font-weight: 600; letter-spacing: 0.03em; }
-  .ap-sidebar {
-    width: 240px; background: var(--surface); border-right: 1px solid var(--border);
-    display: flex; flex-direction: column; height: 100vh; overflow-y: auto; flex-shrink: 0;
-  }
-  .ap-sidebar-head { padding: 18px 16px 14px; border-bottom: 1px solid var(--border); }
-  .ap-sidebar-brand { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-  .ap-sidebar-brand-icon {
-    width: 26px; height: 26px; background: var(--accent); border-radius: 7px;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .ap-sidebar-brand-name { font-size: 14px; font-weight: 700; }
-  .ap-sidebar-org {
-    display: flex; align-items: center; gap: 6px; padding: 6px 10px;
-    background: var(--accent-bg); border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--accent);
-  }
-  .ap-sidebar-section { padding: 10px 16px 4px; font-size: 10px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: 0.07em; }
-  .ap-nav-list { padding: 0 8px; flex: 1; }
-  .ap-nav-btn {
-    display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px;
-    width: 100%; text-align: left; border: none; background: transparent; cursor: pointer;
-    font-family: inherit; font-size: 13px; color: var(--text2); font-weight: 400;
-    position: relative; transition: all 0.12s;
-  }
-  .ap-nav-btn.active { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
-  .ap-nav-btn.active::before {
-    content:''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
-    width: 3px; height: 16px; background: var(--accent); border-radius: 0 3px 3px 0;
-  }
-  .ap-nav-btn:hover:not(.active) { background: var(--bg, #f5f6fa); }
-  .ap-badge {
-    background: var(--accent); color: #fff; border-radius: 20px; font-size: 10px;
-    font-weight: 700; padding: 1px 7px; margin-left: auto;
-  }
-  .ap-sidebar-foot { padding: 12px 16px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text3); }
-  .ap-main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
-  .ap-topbar {
-    height: 52px; background: var(--surface); border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; padding: 0 28px; gap: 12px; flex-shrink: 0;
-  }
-  .ap-topbar-title { font-size: 15px; font-weight: 600; flex: 1; }
-  .ap-topbar-email { font-size: 12px; color: var(--text2); }
-  .ap-body { flex: 1; overflow-y: auto; padding: 28px; }
-  .ap-page-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 20px; }
-  .ap-page-title { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
-  .ap-page-sub { font-size: 13px; color: var(--text2); }
-  .ap-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-  .ap-client-row {
-    display: flex; align-items: center; gap: 16px; padding: 16px 20px;
-    border-bottom: 1px solid var(--border); transition: background 0.12s;
-  }
-  .ap-client-row:last-child { border-bottom: none; }
-  .ap-client-row:hover { background: #fafafa; }
-  .ap-client-icon {
-    width: 40px; height: 40px; background: var(--accent-bg); border: 1px solid #c7d2fe;
-    border-radius: 10px; display: flex; align-items: center; justify-content: center;
-    font-size: 18px; flex-shrink: 0;
-  }
-  .ap-client-info { flex: 1; min-width: 0; }
-  .ap-client-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
-  .ap-client-meta { font-size: 11px; color: var(--text3); margin-bottom: 6px; font-family: monospace; }
-  .ap-tags { display: flex; gap: 5px; flex-wrap: wrap; }
-  .ap-tag { border-radius: 20px; padding: 2px 9px; font-size: 11px; font-weight: 600; border: 1px solid transparent; }
-  .ap-actions { display: flex; gap: 6px; flex-shrink: 0; }
-  .ap-view-panel {
-    border-top: 2px solid var(--accent-bg); background: #fafbff;
-    padding: 20px 20px 20px 76px; animation: apSlideDown 0.18s ease;
-  }
-  @keyframes apSlideDown { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
-  .ap-view-section-title { font-size: 12px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
-  .ap-user-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
-  .ap-user-chip { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 3px 12px; font-size: 12px; }
-  .ap-scan-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px,1fr)); gap: 8px; }
-  .ap-scan-stat { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; text-align: center; }
-  .ap-scan-stat-val { font-size: 20px; font-weight: 700; color: var(--accent); }
-  .ap-scan-stat-lbl { font-size: 10px; color: var(--text3); margin-top: 2px; }
-  .ap-scan-account { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 10px; }
-  .ap-scan-account-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-  .ap-scan-account-name { font-size: 13px; font-weight: 600; }
-  .ap-scan-account-meta { font-size: 11px; color: var(--text3); margin-top: 2px; }
-  .ap-cloud-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 5px; }
-  .ap-cloud-aws { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
-  .ap-cloud-azure { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
-  .ap-empty { text-align: center; padding: 48px; color: var(--text3); }
-  .ap-empty-icon { font-size: 36px; margin-bottom: 12px; }
-  .ap-empty-title { font-size: 15px; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
-  .ap-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 100;
-    display: flex; align-items: center; justify-content: center;
-    animation: apFadeIn 0.15s ease;
-  }
-  @keyframes apFadeIn { from { opacity:0; } to { opacity:1; } }
-  .ap-modal {
-    background: var(--surface); border-radius: 16px; padding: 28px; width: 520px; max-width: 95vw;
-    max-height: 88vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.18);
-    animation: apPopIn 0.18s ease;
-  }
-  @keyframes apPopIn { from { opacity:0; transform: scale(0.96) translateY(8px); } to { opacity:1; transform:none; } }
-  .ap-modal-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
-  .ap-modal-title { font-size: 17px; font-weight: 700; }
-  .ap-modal-sub { font-size: 12px; color: var(--text2); margin-top: 2px; }
-  .ap-modal-close { width: 28px; height: 28px; border-radius: 7px; border: 1px solid var(--border); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--text2); }
-  .ap-modal-close:hover { background: var(--bg, #f5f6fa); }
-  .ap-field { margin-bottom: 16px; }
-  .ap-label { display: block; font-size: 10px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px; }
-  .ap-input {
-    width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px;
-    font-family: inherit; font-size: 13px; background: var(--bg, #f5f6fa); color: var(--text);
-    outline: none; transition: border 0.15s;
-  }
-  .ap-input:focus { border-color: var(--accent); background: var(--surface); }
-  .ap-input::placeholder { color: var(--text3); }
-  .ap-hint { font-size: 11px; color: var(--text3); margin-top: 4px; font-family: monospace; }
-  .ap-service-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-top: 2px; }
-  .ap-service-tile {
-    border: 2px solid var(--border); border-radius: 9px; padding: 10px 12px;
-    cursor: pointer; background: var(--bg, #f5f6fa); transition: all 0.13s; user-select: none;
-  }
-  .ap-service-tile.checked { border-color: var(--accent); background: var(--accent-bg); }
-  .ap-service-tile-top { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
-  .ap-check {
-    width: 15px; height: 15px; border-radius: 4px; border: 2px solid var(--border);
-    display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.13s;
-  }
-  .ap-service-tile.checked .ap-check { background: var(--accent); border-color: var(--accent); }
-  .ap-check-mark { color: #fff; font-size: 9px; font-weight: 800; }
-  .ap-service-name { font-size: 12px; font-weight: 600; }
-  .ap-service-desc { font-size: 10px; color: var(--text3); padding-left: 22px; }
-  .ap-spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block; }
-  /* reuse existing btn classes from global CSS */
-  .ap-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; }
-  .ap-btn-primary { background: var(--accent); color: #fff; }
-  .ap-btn-primary:hover { background: var(--accent2, #2f4ac0); }
-  .ap-btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text2); }
-  .ap-btn-ghost:hover { background: var(--bg, #f5f6fa); }
-  .ap-btn-danger { background: var(--red-bg); border: 1px solid #fca5a5; color: var(--red); }
-  .ap-btn-danger:hover { background: #fee2e2; }
-  .ap-btn-sm { padding: 5px 12px; font-size: 12px; border-radius: 7px; }
-  .ap-btn-signout { background: var(--bg, #f5f6fa); border: 1px solid var(--border); color: var(--text2); padding: 6px 14px; border-radius: 8px; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
-  .ap-alert { border-radius: 8px; padding: 10px 16px; font-size: 13px; margin-bottom: 16px; }
-  .ap-alert-success { background: var(--green-bg); border: 1px solid #6ee7b7; color: #065f46; }
-  .ap-alert-error { background: var(--red-bg); border: 1px solid #fca5a5; color: #991b1b; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+.ap-root *,
+.ap-root *::before,
+.ap-root *::after { box-sizing: border-box; }
+
+.ap-root {
+  font-family: 'Inter', system-ui, sans-serif;
+  --c-bg:        #f4f6fb;
+  --c-surf:      #ffffff;
+  --c-surf2:     #f8faff;
+  --c-border:    #e4e9f2;
+  --c-border2:   #eef1f8;
+  --c-text:      #0f172a;
+  --c-sub:       #64748b;
+  --c-faint:     #94a3b8;
+  --c-blue:      #2563eb;
+  --c-blue-lt:   #eff6ff;
+  --c-blue-mid:  #bfdbfe;
+  --c-green:     #16a34a;
+  --c-green-lt:  #f0fdf4;
+  --c-green-mid: #bbf7d0;
+  --c-red:       #dc2626;
+  --c-red-lt:    #fef2f2;
+  --c-red-mid:   #fecaca;
+  --c-amber:     #d97706;
+  --c-amber-lt:  #fffbeb;
+  --c-purple:    #7c3aed;
+  --c-purple-lt: #f5f3ff;
+  --c-cyan:      #0891b2;
+  --c-cyan-lt:   #ecfeff;
+
+  /* Service colors */
+  --c-cloudops:  #2563eb;
+  --c-finops:    #16a34a;
+  --c-secops:    #dc2626;
+  --c-aiops:     #7c3aed;
+  --c-rfp:       #d97706;
+  --c-ticketing: #0891b2;
+}
+
+/* ── SHELL ── */
+.ap-shell {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--c-bg);
+  color: var(--c-text);
+}
+
+/* ── SIDEBAR ── */
+.ap-sidebar {
+  width: 248px;
+  background: var(--c-surf);
+  border-right: 1px solid var(--c-border);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  flex-shrink: 0;
+}
+.ap-sidebar-top {
+  padding: 20px 18px 16px;
+  border-bottom: 1px solid var(--c-border);
+}
+.ap-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.ap-sidebar-logo {
+  width: 34px; height: 34px;
+  background: linear-gradient(135deg,#2563eb,#1d4ed8);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 12px rgba(37,99,235,0.25);
+  flex-shrink: 0;
+}
+.ap-sidebar-brand-text { font-size: 15px; font-weight: 700; color: var(--c-text); letter-spacing: -.02em; }
+.ap-sidebar-brand-sub  { font-size: 11px; color: var(--c-sub); font-weight: 400; }
+.ap-org-chip {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 11px;
+  background: var(--c-blue-lt);
+  border: 1px solid var(--c-blue-mid);
+  border-radius: 8px;
+  font-size: 12px; font-weight: 600; color: var(--c-blue);
+}
+.ap-org-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--c-blue);
+  box-shadow: 0 0 6px rgba(37,99,235,0.5);
+  animation: apPulse 2s ease-in-out infinite;
+}
+@keyframes apPulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+.ap-nav-section {
+  padding: 16px 18px 6px;
+  font-size: 9.5px; font-weight: 700; color: var(--c-faint);
+  text-transform: uppercase; letter-spacing: .12em;
+}
+.ap-nav-list { padding: 0 10px; flex: 1; }
+.ap-nav-btn {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 9px 10px;
+  border-radius: 8px;
+  border: none; background: transparent;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px; font-weight: 500;
+  color: var(--c-sub);
+  cursor: pointer;
+  position: relative;
+  transition: all .12s;
+  text-align: left;
+  margin-bottom: 1px;
+}
+.ap-nav-btn.active {
+  background: var(--c-blue-lt);
+  color: var(--c-blue);
+  font-weight: 600;
+  border: 1px solid var(--c-blue-mid);
+}
+.ap-nav-btn:hover:not(.active) { background: var(--c-bg); color: var(--c-text); }
+.ap-nav-icon {
+  width: 28px; height: 28px;
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--c-border2);
+  flex-shrink: 0;
+  transition: all .12s;
+}
+.ap-nav-btn.active .ap-nav-icon { background: var(--c-blue); }
+.ap-nav-btn.active .ap-nav-icon svg { stroke: white; }
+.ap-nav-badge {
+  margin-left: auto;
+  background: var(--c-blue);
+  color: #fff;
+  border-radius: 20px;
+  font-size: 10px; font-weight: 700;
+  padding: 1px 8px;
+  letter-spacing: .02em;
+}
+.ap-sidebar-foot {
+  padding: 14px 16px;
+  border-top: 1px solid var(--c-border);
+  display: flex; align-items: center; gap: 10px;
+}
+.ap-user-avatar {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: linear-gradient(135deg,#2563eb,#7c3aed);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: white;
+  flex-shrink: 0;
+}
+.ap-user-email { font-size: 11px; color: var(--c-sub); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-signout-btn {
+  width: 28px; height: 28px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--c-border);
+  background: transparent; cursor: pointer;
+  color: var(--c-sub);
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.ap-signout-btn:hover { background: var(--c-red-lt); border-color: var(--c-red-mid); color: var(--c-red); }
+
+/* ── MAIN ── */
+.ap-main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── TOPBAR ── */
+.ap-topbar {
+  height: 56px;
+  background: var(--c-surf);
+  border-bottom: 1px solid var(--c-border);
+  display: flex; align-items: center;
+  padding: 0 28px; gap: 12px;
+  flex-shrink: 0;
+}
+.ap-topbar-breadcrumb { display: flex; align-items: center; gap: 8px; }
+.ap-topbar-crumb-root { font-size: 13px; color: var(--c-sub); font-weight: 500; }
+.ap-topbar-sep { color: var(--c-faint); font-size: 14px; }
+.ap-topbar-crumb-active { font-size: 13px; font-weight: 600; color: var(--c-text); }
+.ap-topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.ap-topbar-email-chip {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 11px;
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: 20px;
+  font-size: 11.5px; color: var(--c-sub); font-weight: 500;
+}
+.ap-topbar-signout {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--c-border);
+  background: white;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px; font-weight: 600; color: var(--c-sub);
+  cursor: pointer;
+  transition: all .15s;
+}
+.ap-topbar-signout:hover { border-color: var(--c-red-mid); color: var(--c-red); background: var(--c-red-lt); }
+
+/* ── BODY ── */
+.ap-body { flex: 1; overflow-y: auto; padding: 28px; background: var(--c-bg); }
+
+/* ── PAGE HEADER ── */
+.ap-page-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 24px; }
+.ap-page-title { font-size: 22px; font-weight: 700; color: var(--c-text); letter-spacing: -.03em; margin-bottom: 3px; }
+.ap-page-sub { font-size: 13px; color: var(--c-sub); }
+
+/* ── ALERTS ── */
+.ap-alert {
+  border-radius: 10px; padding: 11px 16px;
+  font-size: 13px; font-weight: 500;
+  margin-bottom: 18px;
+  display: flex; align-items: center; gap: 9px;
+  animation: apSlideDown .2s ease;
+}
+.ap-alert-success { background: var(--c-green-lt); border: 1px solid var(--c-green-mid); color: var(--c-green); }
+.ap-alert-error   { background: var(--c-red-lt);   border: 1px solid var(--c-red-mid);   color: var(--c-red);   }
+
+/* ── CLIENT TABLE CARD ── */
+.ap-card {
+  background: var(--c-surf);
+  border: 1px solid var(--c-border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03);
+}
+.ap-card-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 120px;
+  padding: 10px 20px;
+  background: var(--c-surf2);
+  border-bottom: 1px solid var(--c-border);
+}
+.ap-card-header-cell {
+  font-size: 10px; font-weight: 700; color: var(--c-faint);
+  text-transform: uppercase; letter-spacing: .1em;
+}
+
+/* ── CLIENT ROW ── */
+.ap-client-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 120px;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--c-border2);
+  transition: background .12s;
+  gap: 12px;
+}
+.ap-client-row:last-child { border-bottom: none; }
+.ap-client-row:hover { background: var(--c-surf2); }
+.ap-client-left { display: flex; align-items: center; gap: 13px; }
+.ap-client-avatar {
+  width: 38px; height: 38px;
+  border-radius: 10px;
+  background: var(--c-blue-lt);
+  border: 1px solid var(--c-blue-mid);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; flex-shrink: 0;
+}
+.ap-client-name { font-size: 14px; font-weight: 600; color: var(--c-text); margin-bottom: 2px; letter-spacing: -.01em; }
+.ap-client-slug { font-size: 11px; color: var(--c-faint); font-family: 'JetBrains Mono', monospace; }
+.ap-client-date { font-size: 11.5px; color: var(--c-sub); font-weight: 500; }
+
+/* ── TAGS ── */
+.ap-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+.ap-tag {
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 10.5px; font-weight: 600;
+  border: 1px solid transparent;
+  letter-spacing: .01em;
+}
+
+/* ── ROW ACTIONS ── */
+.ap-row-actions { display: flex; gap: 5px; justify-content: flex-end; }
+.ap-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 12px;
+  border-radius: 7px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px; font-weight: 600;
+  cursor: pointer; border: none;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.ap-btn-primary  { background: var(--c-blue); color: #fff; box-shadow: 0 2px 8px rgba(37,99,235,0.2); }
+.ap-btn-primary:hover { background: #1d4ed8; box-shadow: 0 4px 14px rgba(37,99,235,0.3); }
+.ap-btn-ghost    { background: transparent; border: 1px solid var(--c-border); color: var(--c-sub); }
+.ap-btn-ghost:hover   { background: var(--c-bg); color: var(--c-text); border-color: var(--c-text); }
+.ap-btn-danger   { background: var(--c-red-lt); border: 1px solid var(--c-red-mid); color: var(--c-red); }
+.ap-btn-danger:hover  { background: #fee2e2; }
+.ap-btn-sm { padding: 5px 10px; font-size: 11.5px; border-radius: 6px; }
+.ap-btn-icon-only {
+  width: 30px; height: 30px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 7px;
+}
+
+/* ── EXPAND PANEL ── */
+.ap-expand-panel {
+  background: var(--c-surf2);
+  border-top: 1px solid var(--c-border2);
+  padding: 20px 24px 22px;
+  animation: apSlideDown .18s ease;
+}
+@keyframes apSlideDown { from{opacity:0;transform:translateY(-5px)} to{opacity:1;transform:none} }
+.ap-expand-section-title {
+  font-size: 10px; font-weight: 700; color: var(--c-faint);
+  text-transform: uppercase; letter-spacing: .12em;
+  margin-bottom: 10px;
+}
+.ap-user-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+.ap-user-chip {
+  background: var(--c-surf);
+  border: 1px solid var(--c-border);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 12px; color: var(--c-sub);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ── SCAN CARDS ── */
+.ap-scan-account {
+  background: var(--c-surf);
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 10px;
+}
+.ap-scan-account-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+.ap-scan-account-name { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+.ap-scan-account-meta { font-size: 11px; color: var(--c-faint); font-family: 'JetBrains Mono', monospace; }
+.ap-cloud-badge {
+  font-size: 10px; font-weight: 700;
+  padding: 3px 9px; border-radius: 6px;
+  letter-spacing: .04em;
+}
+.ap-cloud-aws   { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+.ap-cloud-azure { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.ap-scan-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px,1fr));
+  gap: 8px;
+}
+.ap-scan-stat {
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+}
+.ap-scan-stat-val { font-size: 19px; font-weight: 700; color: var(--c-blue); font-variant-numeric: tabular-nums; }
+.ap-scan-stat-lbl { font-size: 10px; color: var(--c-faint); margin-top: 2px; font-weight: 500; }
+
+/* ── EMPTY STATE ── */
+.ap-empty {
+  text-align: center;
+  padding: 60px 24px;
+}
+.ap-empty-icon {
+  width: 56px; height: 56px;
+  border-radius: 16px;
+  background: var(--c-blue-lt);
+  border: 1px solid var(--c-blue-mid);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px;
+  margin: 0 auto 16px;
+}
+.ap-empty-title { font-size: 16px; font-weight: 700; color: var(--c-text); margin-bottom: 6px; letter-spacing: -.02em; }
+.ap-empty-sub   { font-size: 13px; color: var(--c-sub); margin-bottom: 20px; }
+
+/* ── MODAL ── */
+.ap-overlay {
+  position: fixed; inset: 0;
+  background: rgba(15,23,42,0.4);
+  backdrop-filter: blur(6px);
+  z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  animation: apFadeIn .15s ease;
+}
+@keyframes apFadeIn { from{opacity:0} to{opacity:1} }
+.ap-modal {
+  background: var(--c-surf);
+  border: 1px solid var(--c-border);
+  border-radius: 18px;
+  padding: 28px;
+  width: 540px; max-width: 95vw;
+  max-height: 88vh; overflow-y: auto;
+  box-shadow: 0 24px 60px rgba(15,23,42,0.18), 0 4px 16px rgba(15,23,42,0.08);
+  animation: apPopIn .18s ease;
+}
+@keyframes apPopIn { from{opacity:0;transform:scale(.96) translateY(8px)} to{opacity:1;transform:none} }
+.ap-modal-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 22px; }
+.ap-modal-title { font-size: 17px; font-weight: 700; color: var(--c-text); letter-spacing: -.02em; }
+.ap-modal-sub   { font-size: 12px; color: var(--c-sub); margin-top: 3px; }
+.ap-modal-close {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--c-border);
+  background: transparent; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: var(--c-sub);
+  transition: all .15s;
+}
+.ap-modal-close:hover { background: var(--c-bg); color: var(--c-text); }
+.ap-modal-divider { height: 1px; background: var(--c-border); margin: 18px 0; }
+
+/* ── FORM ── */
+.ap-field { margin-bottom: 16px; }
+.ap-label {
+  display: block;
+  font-size: 11px; font-weight: 700; color: var(--c-sub);
+  text-transform: uppercase; letter-spacing: .08em;
+  margin-bottom: 7px;
+}
+.ap-input {
+  width: 100%; padding: 9px 12px;
+  border: 1px solid var(--c-border);
+  border-radius: 9px;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px; color: var(--c-text);
+  background: var(--c-bg);
+  outline: none;
+  transition: all .15s;
+}
+.ap-input:focus { border-color: var(--c-blue); background: white; box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
+.ap-input::placeholder { color: var(--c-faint); }
+.ap-hint { font-size: 11px; color: var(--c-faint); margin-top: 5px; font-family: 'JetBrains Mono', monospace; }
+
+/* ── SERVICE / CLOUD TILES ── */
+.ap-tiles-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-top: 2px; }
+.ap-tile {
+  border: 1.5px solid var(--c-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  background: var(--c-bg);
+  transition: all .13s;
+  user-select: none;
+}
+.ap-tile:hover { border-color: var(--c-blue); background: var(--c-blue-lt); }
+.ap-tile.checked { border-color: var(--c-blue); background: var(--c-blue-lt); }
+.ap-tile-top { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.ap-tile-check {
+  width: 16px; height: 16px;
+  border-radius: 5px;
+  border: 1.5px solid var(--c-border);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: all .13s;
+  background: white;
+}
+.ap-tile.checked .ap-tile-check {
+  background: var(--c-blue);
+  border-color: var(--c-blue);
+}
+.ap-tile-check-mark { color: #fff; font-size: 9px; font-weight: 800; line-height: 1; }
+.ap-tile-name { font-size: 12px; font-weight: 600; }
+.ap-tile-desc { font-size: 10px; color: var(--c-faint); padding-left: 24px; }
+
+/* ── SPINNER ── */
+.ap-spinner {
+  width: 14px; height: 14px;
+  border: 2px solid var(--c-border);
+  border-top-color: var(--c-blue);
+  border-radius: 50%;
+  animation: apSpin .55s linear infinite;
+  display: inline-block; flex-shrink: 0;
+}
+@keyframes apSpin { to { transform: rotate(360deg); } }
+
+/* ── STAT BAR (top of page) ── */
+.ap-stat-row { display: flex; gap: 12px; margin-bottom: 24px; }
+.ap-stat-card {
+  flex: 1;
+  background: var(--c-surf);
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.ap-stat-val  { font-size: 26px; font-weight: 700; letter-spacing: -.04em; line-height: 1; margin-bottom: 4px; }
+.ap-stat-label{ font-size: 11.5px; color: var(--c-sub); font-weight: 500; }
+
+/* ── SEARCH / FILTER BAR ── */
+.ap-toolbar {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 16px;
+}
+.ap-search-wrap { position: relative; flex: 1; max-width: 320px; }
+.ap-search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--c-faint); pointer-events: none; }
+.ap-search-input {
+  width: 100%; padding: 8px 12px 8px 34px;
+  border: 1px solid var(--c-border);
+  border-radius: 9px;
+  background: var(--c-surf);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px; color: var(--c-text);
+  outline: none; transition: all .15s;
+}
+.ap-search-input:focus { border-color: var(--c-blue); box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
+.ap-search-input::placeholder { color: var(--c-faint); }
+
+/* ── MODAL FOOTER ── */
+.ap-modal-footer { display: flex; gap: 8px; margin-top: 6px; }
+
+/* ── MISC ── */
+.ap-text-danger { color: var(--c-red); }
+.ap-no-data { font-size: 13px; color: var(--c-faint); padding: 4px 0 12px; }
 `;
 
-// ── 3. Sub-components needed by the full AdminPanel ───────────────────────────
+// ── CONSTANTS ────────────────────────────────────────────────────────────────
+const SERVICES = [
+    { id: 'cloudops',   label: 'CloudOps',   desc: 'Infrastructure',  color: '#2563eb' },
+    { id: 'finops',     label: 'FinOps',     desc: 'Cost Management', color: '#16a34a' },
+    { id: 'secops',     label: 'SecOps',     desc: 'Security',        color: '#dc2626' },
+    { id: 'aiops',      label: 'AIOps',      desc: 'AI Operations',   color: '#7c3aed' },
+    { id: 'rfp',        label: 'RFP Gen',    desc: 'Document Auto.',  color: '#d97706' },
+    { id: 'ticketing',  label: 'Ticketing',  desc: 'Auto-Ticketing',  color: '#0891b2' },
+];
+
+const CLOUDS = [
+    { id: 'aws',    label: 'AWS',    desc: 'Amazon Web Services', color: '#f59e0b', icon: '☁' },
+    { id: 'azure',  label: 'Azure',  desc: 'Microsoft Azure',     color: '#2563eb', icon: '⬡' },
+    { id: 'huawei', label: 'Huawei', desc: 'Huawei Cloud',        color: '#dc2626', icon: '◈' },
+];
+
+// ── SUB-COMPONENTS ───────────────────────────────────────────────────────────
 
 function ApSpinner() { return <div className="ap-spinner" />; }
-
-function ApServiceTiles({ selected, onToggle, services }) {
-    // uses the SERVICES constant already defined in App.jsx
-    const svcList = services || SERVICES;
-    return (
-        <div className="ap-service-grid">
-            {svcList.map(s => {
-                const checked = selected.includes(s.id);
-                return (
-                    <div key={s.id} className={`ap-service-tile ${checked ? 'checked' : ''}`} onClick={() => onToggle(s.id)}>
-                        <div className="ap-service-tile-top">
-                            <div className="ap-check">{checked && <span className="ap-check-mark">✓</span>}</div>
-                            <span className="ap-service-name" style={{ color: checked ? s.color : 'var(--text)' }}>{s.label}</span>
-                        </div>
-                        <div className="ap-service-desc">{s.desc}</div>
-                    </div>
-                );
-            })}
-        </div>
-    );
-}
-
-function ApCloudTiles({ selected, onToggle }) {
-    return (
-        <div className="ap-service-grid">
-            {CLOUDS.map(c => {
-                const checked = selected.includes(c.id);
-                return (
-                    <div key={c.id}
-                         className={`ap-service-tile ${checked ? 'checked' : ''}`}
-                         style={checked ? { borderColor: c.color, background: `${c.color}12` } : {}}
-                         onClick={() => onToggle(c.id)}>
-                        <div className="ap-service-tile-top">
-                            <div className="ap-check" style={checked ? { background: c.color, borderColor: c.color } : {}}>
-                                {checked && <span className="ap-check-mark">✓</span>}
-                            </div>
-                            <span className="ap-service-name" style={{ color: checked ? c.color : 'var(--text)' }}>
-                {c.icon} {c.label}
-              </span>
-                        </div>
-                        <div className="ap-service-desc">{c.desc}</div>
-                    </div>
-                );
-            })}
-        </div>
-    );
-}
 
 function ApCloudTag({ id }) {
     const c = CLOUDS.find(x => x.id === id);
     if (!c) return null;
     return (
-        <span className="ap-tag" style={{ background: `${c.color}15`, borderColor: `${c.color}40`, color: c.color }}>
+        <span className="ap-tag" style={{ background: `${c.color}12`, borderColor: `${c.color}35`, color: c.color }}>
       {c.icon} {c.label}
     </span>
     );
@@ -7444,9 +7773,59 @@ function ApServiceTag({ id }) {
     const s = SERVICES.find(x => x.id === id);
     if (!s) return null;
     return (
-        <span className="ap-tag" style={{ background: `${s.color}15`, borderColor: `${s.color}40`, color: s.color }}>
+        <span className="ap-tag" style={{ background: `${s.color}12`, borderColor: `${s.color}35`, color: s.color }}>
       {s.label}
     </span>
+    );
+}
+
+function ApServiceTiles({ selected, onToggle }) {
+    return (
+        <div className="ap-tiles-grid">
+            {SERVICES.map(s => {
+                const checked = selected.includes(s.id);
+                return (
+                    <div key={s.id}
+                         className={`ap-tile ${checked ? 'checked' : ''}`}
+                         style={checked ? { borderColor: s.color, background: `${s.color}0e` } : {}}
+                         onClick={() => onToggle(s.id)}>
+                        <div className="ap-tile-top">
+                            <div className="ap-tile-check" style={checked ? { background: s.color, borderColor: s.color } : {}}>
+                                {checked && <span className="ap-tile-check-mark">✓</span>}
+                            </div>
+                            <span className="ap-tile-name" style={{ color: checked ? s.color : 'inherit' }}>{s.label}</span>
+                        </div>
+                        <div className="ap-tile-desc">{s.desc}</div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+function ApCloudTiles({ selected, onToggle }) {
+    return (
+        <div className="ap-tiles-grid">
+            {CLOUDS.map(c => {
+                const checked = selected.includes(c.id);
+                return (
+                    <div key={c.id}
+                         className={`ap-tile ${checked ? 'checked' : ''}`}
+                         style={checked ? { borderColor: c.color, background: `${c.color}0e` } : {}}
+                         onClick={() => onToggle(c.id)}>
+                        <div className="ap-tile-top">
+                            <div className="ap-tile-check" style={checked ? { background: c.color, borderColor: c.color } : {}}>
+                                {checked && <span className="ap-tile-check-mark">✓</span>}
+                            </div>
+                            <span className="ap-tile-name" style={{ color: checked ? c.color : 'inherit' }}>
+                {c.icon} {c.label}
+              </span>
+                        </div>
+                        <div className="ap-tile-desc">{c.desc}</div>
+                    </div>
+                );
+            })}
+        </div>
     );
 }
 
@@ -7487,11 +7866,9 @@ function ApScanAccountCard({ rec }) {
     );
 }
 
-// ── 4. Onboard Modal ──────────────────────────────────────────────────────────
+// ── ONBOARD MODAL ─────────────────────────────────────────────────────────────
 function OnboardModal({ onClose, onCreated, token }) {
-    const [form, setForm] = useState({
-        slug: '', companyName: '', logoUrl: '', allowedServices: [], allowedClouds: []
-    });
+    const [form, setForm] = useState({ slug: '', companyName: '', logoUrl: '', allowedServices: [], allowedClouds: [] });
     const [loading, setLoading] = useState(false);
     const [err, setErr] = useState('');
 
@@ -7511,8 +7888,8 @@ function OnboardModal({ onClose, onCreated, token }) {
             });
             const json = await res.json();
             if (json.error) { setErr(json.error); setLoading(false); return; }
-            onCreated(`Client "${form.companyName}" created!`);
-        } catch { setErr('Failed to create client'); setLoading(false); }
+            onCreated(`Client "${form.companyName}" created successfully.`);
+        } catch { setErr('Failed to create client. Please try again.'); setLoading(false); }
     };
 
     return (
@@ -7521,31 +7898,34 @@ function OnboardModal({ onClose, onCreated, token }) {
                 <div className="ap-modal-head">
                     <div>
                         <div className="ap-modal-title">Onboard New Client</div>
-                        <div className="ap-modal-sub">Fill in details and configure service &amp; cloud access.</div>
+                        <div className="ap-modal-sub">Configure access and services for this client workspace.</div>
                     </div>
                     <button className="ap-modal-close" onClick={onClose}>✕</button>
                 </div>
 
-                {err && <div className="ap-alert ap-alert-error" style={{marginBottom:14}}>{err}</div>}
+                {err && <div className="ap-alert ap-alert-error">⚠ {err}</div>}
 
                 <div className="ap-field">
                     <label className="ap-label">Company Name</label>
-                    <input className="ap-input" placeholder="e.g. Virgin Mobiles" value={form.companyName}
+                    <input className="ap-input" placeholder="e.g. Acme Corporation" value={form.companyName}
                            onChange={e => setForm(p=>({...p, companyName: e.target.value}))} />
                 </div>
                 <div className="ap-field">
                     <label className="ap-label">URL Slug</label>
-                    <input className="ap-input" placeholder="e.g. virginmobiles (no spaces)" value={form.slug}
+                    <input className="ap-input" placeholder="e.g. acmecorp" value={form.slug}
                            onChange={e => setForm(p=>({...p, slug: e.target.value.toLowerCase().replace(/\s/g,'')}))} />
-                    {form.slug && <div className="ap-hint">Client URL: yourapp.com/{form.slug}</div>}
+                    {form.slug && <div className="ap-hint">→ yourapp.com/{form.slug}</div>}
                 </div>
                 <div className="ap-field">
-                    <label className="ap-label">Logo URL <span style={{fontWeight:400,textTransform:'none'}}>(optional)</span></label>
+                    <label className="ap-label">Logo URL <span style={{fontWeight:400,textTransform:'none',fontSize:10}}>(optional)</span></label>
                     <input className="ap-input" placeholder="https://..." value={form.logoUrl}
                            onChange={e => setForm(p=>({...p, logoUrl: e.target.value}))} />
                 </div>
+
+                <div className="ap-modal-divider" />
+
                 <div className="ap-field">
-                    <label className="ap-label">Allowed Cloud Providers</label>
+                    <label className="ap-label">Cloud Providers</label>
                     <ApCloudTiles selected={form.allowedClouds} onToggle={toggleCloud} />
                 </div>
                 <div className="ap-field">
@@ -7553,7 +7933,7 @@ function OnboardModal({ onClose, onCreated, token }) {
                     <ApServiceTiles selected={form.allowedServices} onToggle={toggleSvc} />
                 </div>
 
-                <div style={{display:'flex', gap:8, marginTop:4}}>
+                <div className="ap-modal-footer">
                     <button className="ap-btn ap-btn-primary" style={{flex:1}} onClick={handleCreate} disabled={loading}>
                         {loading ? <><ApSpinner /> Creating…</> : 'Create Client →'}
                     </button>
@@ -7564,7 +7944,7 @@ function OnboardModal({ onClose, onCreated, token }) {
     );
 }
 
-// ── 5. Edit Modal ─────────────────────────────────────────────────────────────
+// ── EDIT MODAL ────────────────────────────────────────────────────────────────
 function EditModal({ client, onClose, onUpdated, token }) {
     const [data, setData] = useState({
         ...client,
@@ -7587,8 +7967,8 @@ function EditModal({ client, onClose, onUpdated, token }) {
             });
             const json = await res.json();
             if (json.error) { setErr(json.error); setLoading(false); return; }
-            onUpdated('Client updated successfully!');
-        } catch { setErr('Failed to update client'); setLoading(false); }
+            onUpdated('Client updated successfully.');
+        } catch { setErr('Failed to update client.'); setLoading(false); }
     };
 
     return (
@@ -7597,20 +7977,23 @@ function EditModal({ client, onClose, onUpdated, token }) {
                 <div className="ap-modal-head">
                     <div>
                         <div className="ap-modal-title">Edit {client.companyName}</div>
-                        <div className="ap-modal-sub">Update client details, cloud providers and service access.</div>
+                        <div className="ap-modal-sub">Update cloud providers and service permissions.</div>
                     </div>
                     <button className="ap-modal-close" onClick={onClose}>✕</button>
                 </div>
 
-                {err && <div className="ap-alert ap-alert-error">{err}</div>}
+                {err && <div className="ap-alert ap-alert-error">⚠ {err}</div>}
 
                 <div className="ap-field">
                     <label className="ap-label">Company Name</label>
                     <input className="ap-input" value={data.companyName}
                            onChange={e => setData(p=>({...p, companyName: e.target.value}))} />
                 </div>
+
+                <div className="ap-modal-divider" />
+
                 <div className="ap-field">
-                    <label className="ap-label">Allowed Cloud Providers</label>
+                    <label className="ap-label">Cloud Providers</label>
                     <ApCloudTiles selected={data.allowedClouds} onToggle={toggleCloud} />
                 </div>
                 <div className="ap-field">
@@ -7618,7 +8001,7 @@ function EditModal({ client, onClose, onUpdated, token }) {
                     <ApServiceTiles selected={data.allowedServices} onToggle={toggleSvc} />
                 </div>
 
-                <div style={{display:'flex', gap:8, marginTop:4}}>
+                <div className="ap-modal-footer">
                     <button className="ap-btn ap-btn-primary" style={{flex:1}} onClick={handleUpdate} disabled={loading}>
                         {loading ? <><ApSpinner /> Saving…</> : 'Save Changes'}
                     </button>
@@ -7629,31 +8012,18 @@ function EditModal({ client, onClose, onUpdated, token }) {
     );
 }
 
-const SERVICES = [
-    { id: 'cloudops', label: 'CloudOps', desc: 'Infrastructure Management', color: '#6366f1' },
-    { id: 'finops',   label: 'FinOps',   desc: 'Cost Management',           color: '#10b981' },
-    { id: 'secops',   label: 'SecOps',   desc: 'Security Operations',       color: '#ef4444' },
-    { id: 'aiops',    label: 'AIOps',    desc: 'AI-Powered Operations',     color: '#8b5cf6' },
-    { id: 'rfp',      label: 'RFP',      desc: 'Document Automation',       color: '#f59e0b' },
-];
-
-const CLOUDS = [
-    { id: 'aws',    label: 'AWS',    desc: 'Amazon Web Services',  color: '#f59e0b', icon: '☁' },
-    { id: 'azure',  label: 'Azure',  desc: 'Microsoft Azure',      color: '#3b82f6', icon: '⬡' },
-    { id: 'huawei', label: 'Huawei', desc: 'Huawei Cloud',         color: '#ef4444', icon: '◈' },
-];
-
-// ── 6. Full AdminPanel — REPLACES the existing AdminPanel in App.jsx ──────────
+// ── MAIN AdminPanel ───────────────────────────────────────────────────────────
 const AdminPanel = ({ userEmail, onSignOut }) => {
-    const [clients, setClients]               = useState([]);
-    const [loading, setLoading]               = useState(true);
-    const [showOnboard, setShowOnboard]       = useState(false);
-    const [editingClient, setEditingClient]   = useState(null);
-    const [expandedSlug, setExpandedSlug]     = useState(null);
-    const [clientData, setClientData]         = useState({});
+    const [clients, setClients]                     = useState([]);
+    const [loading, setLoading]                     = useState(true);
+    const [showOnboard, setShowOnboard]             = useState(false);
+    const [editingClient, setEditingClient]         = useState(null);
+    const [expandedSlug, setExpandedSlug]           = useState(null);
+    const [clientData, setClientData]               = useState({});
     const [clientDataLoading, setClientDataLoading] = useState({});
-    const [msg, setMsg]   = useState('');
-    const [error, setError] = useState('');
+    const [msg, setMsg]                             = useState('');
+    const [error, setError]                         = useState('');
+    const [search, setSearch]                       = useState('');
 
     const token = typeof localStorage !== 'undefined' ? localStorage.getItem('cloudops-auth-token') : '';
 
@@ -7663,9 +8033,7 @@ const AdminPanel = ({ userEmail, onSignOut }) => {
     const fetchClients = async () => {
         setLoading(true);
         try {
-            const res = await fetch(`${BACKEND}/api/admin/clients`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await fetch(`${BACKEND}/api/admin/clients`, { headers: { Authorization: `Bearer ${token}` } });
             const json = await res.json();
             setClients(json.clients || []);
         } catch { showErr('Failed to load clients'); }
@@ -7694,101 +8062,139 @@ const AdminPanel = ({ userEmail, onSignOut }) => {
         if (clientData[client.slug]) return;
         setClientDataLoading(p => ({ ...p, [client.slug]: true }));
         try {
-            const res = await fetch(`${BACKEND}/api/admin/client-data/${client.slug}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await fetch(`${BACKEND}/api/admin/client-data/${client.slug}`, { headers: { Authorization: `Bearer ${token}` } });
             const json = await res.json();
             setClientData(p => ({ ...p, [client.slug]: json }));
         } catch { showErr('Failed to load client data'); }
         finally { setClientDataLoading(p => ({ ...p, [client.slug]: false })); }
     };
 
+    const initials = email => (email||'').split('@')[0].slice(0,2).toUpperCase();
+
+    // Derived stats
+    const totalServices = clients.reduce((acc, c) => acc + (c.allowedServices||'').split(',').filter(Boolean).length, 0);
+    const totalClouds   = [...new Set(clients.flatMap(c => (c.allowedClouds||'').split(',').filter(Boolean)))].length;
+
+    const filtered = clients.filter(c =>
+        !search ||
+        c.companyName?.toLowerCase().includes(search.toLowerCase()) ||
+        c.slug?.toLowerCase().includes(search.toLowerCase())
+    );
+
     return (
-        <>
+        <div className="ap-root">
             <style>{ADMIN_STYLES}</style>
 
             {showOnboard && (
-                <OnboardModal
-                    token={token}
-                    onClose={() => setShowOnboard(false)}
-                    onCreated={m => { showMsg(m); setShowOnboard(false); fetchClients(); }}
-                />
+                <OnboardModal token={token} onClose={() => setShowOnboard(false)}
+                              onCreated={m => { showMsg(m); setShowOnboard(false); fetchClients(); }} />
             )}
             {editingClient && (
-                <EditModal
-                    client={editingClient}
-                    token={token}
-                    onClose={() => setEditingClient(null)}
-                    onUpdated={m => { showMsg(m); setEditingClient(null); fetchClients(); }}
-                />
+                <EditModal client={editingClient} token={token}
+                           onClose={() => setEditingClient(null)}
+                           onUpdated={m => { showMsg(m); setEditingClient(null); fetchClients(); }} />
             )}
 
             <div className="ap-shell">
 
-                {/* Icon strip */}
-                <div className="ap-icon-strip">
-                    <div className="ap-logo-mark">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
-                            <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
-                        </svg>
-                    </div>
-                    <div style={{width:28,height:1,background:'var(--border)',marginBottom:6}}/>
-                    <button className="ap-icon-btn active">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                        </svg>
-                        <span className="ap-icon-label">Admin</span>
-                    </button>
-                    <div style={{flex:1}}/>
-                    <button className="ap-icon-btn" title="Sign Out" onClick={onSignOut}
-                            style={{color:'var(--red)'}}
-                            onMouseEnter={e=>e.currentTarget.style.background='var(--red-bg)'}
-                            onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                            <polyline points="16 17 21 12 16 7"/>
-                            <line x1="21" y1="12" x2="9" y2="12"/>
-                        </svg>
-                        <span className="ap-icon-label">Exit</span>
-                    </button>
-                </div>
-
-                {/* Sidebar */}
+                {/* ── SIDEBAR ── */}
                 <nav className="ap-sidebar">
-                    <div className="ap-sidebar-head">
+                    <div className="ap-sidebar-top">
                         <div className="ap-sidebar-brand">
-                            <div className="ap-sidebar-brand-icon">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
-                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                            <div className="ap-sidebar-logo">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+                                    <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
                                 </svg>
                             </div>
-                            <span className="ap-sidebar-brand-name">Admin Panel</span>
+                            <div>
+                                <div className="ap-sidebar-brand-text">OmniOps</div>
+                                <div className="ap-sidebar-brand-sub">Admin Console</div>
+                            </div>
                         </div>
-                        <div className="ap-sidebar-org">⚙ OmniOps</div>
+                        <div className="ap-org-chip">
+                            <div className="ap-org-dot" />
+                            OmniOps Platform
+                        </div>
                     </div>
-                    <div className="ap-sidebar-section">Clients</div>
+
+                    <div className="ap-nav-section">Workspace</div>
                     <div className="ap-nav-list">
                         <button className="ap-nav-btn active">
-                            <span style={{width:18,textAlign:'center'}}>👥</span>
+                            <div className="ap-nav-icon">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                    <circle cx="9" cy="7" r="4"/>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                                </svg>
+                            </div>
                             <span style={{flex:1}}>All Clients</span>
-                            {clients.length > 0 && <span className="ap-badge">{clients.length}</span>}
+                            {clients.length > 0 && <span className="ap-nav-badge">{clients.length}</span>}
                         </button>
                     </div>
-                    <div className="ap-sidebar-foot">{userEmail}</div>
+
+                    <div style={{flex:1}} />
+
+                    <div className="ap-sidebar-foot">
+                        <div className="ap-user-avatar">{initials(userEmail)}</div>
+                        <span className="ap-user-email">{userEmail}</span>
+                        <button className="ap-signout-btn" title="Sign Out" onClick={onSignOut}>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                                <polyline points="16 17 21 12 16 7"/>
+                                <line x1="21" y1="12" x2="9" y2="12"/>
+                            </svg>
+                        </button>
+                    </div>
                 </nav>
 
-                {/* Main */}
+                {/* ── MAIN ── */}
                 <div className="ap-main">
+
+                    {/* Topbar */}
                     <div className="ap-topbar">
-                        <span className="ap-topbar-title">👥 All Clients</span>
-                        <span className="ap-topbar-email">{userEmail}</span>
-                        <button className="ap-btn-signout" onClick={onSignOut}>Sign Out</button>
+                        <div className="ap-topbar-breadcrumb">
+                            <span className="ap-topbar-crumb-root">Admin</span>
+                            <span className="ap-topbar-sep">/</span>
+                            <span className="ap-topbar-crumb-active">All Clients</span>
+                        </div>
+                        <div className="ap-topbar-right">
+                            <div className="ap-topbar-email-chip">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <path d="M12 8v4l3 3"/>
+                                </svg>
+                                {userEmail}
+                            </div>
+                            <button className="ap-topbar-signout" onClick={onSignOut}>Sign Out</button>
+                        </div>
                     </div>
 
+                    {/* Body */}
                     <div className="ap-body">
-                        {msg   && <div className="ap-alert ap-alert-success">✅ {msg}</div>}
-                        {error && <div className="ap-alert ap-alert-error">⚠ {error}</div>}
 
+                        {msg   && <div className="ap-alert ap-alert-success"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>{msg}</div>}
+                        {error && <div className="ap-alert ap-alert-error"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>{error}</div>}
+
+                        {/* Stat strip */}
+                        {!loading && (
+                            <div className="ap-stat-row">
+                                <div className="ap-stat-card">
+                                    <div className="ap-stat-val" style={{color:'#2563eb'}}>{clients.length}</div>
+                                    <div className="ap-stat-label">Total Clients</div>
+                                </div>
+                                <div className="ap-stat-card">
+                                    <div className="ap-stat-val" style={{color:'#16a34a'}}>{totalServices}</div>
+                                    <div className="ap-stat-label">Service Assignments</div>
+                                </div>
+                                <div className="ap-stat-card">
+                                    <div className="ap-stat-val" style={{color:'#d97706'}}>{totalClouds}</div>
+                                    <div className="ap-stat-label">Cloud Providers Active</div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Page header + toolbar */}
                         <div className="ap-page-head">
                             <div>
                                 <div className="ap-page-title">All Clients</div>
@@ -7802,8 +8208,21 @@ const AdminPanel = ({ userEmail, onSignOut }) => {
                             </button>
                         </div>
 
+                        {/* Search bar */}
+                        {clients.length > 0 && (
+                            <div className="ap-toolbar">
+                                <div className="ap-search-wrap">
+                                    <svg className="ap-search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                                    </svg>
+                                    <input className="ap-search-input" placeholder="Search clients…" value={search} onChange={e => setSearch(e.target.value)} />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Table */}
                         {loading ? (
-                            <div style={{display:'flex',alignItems:'center',gap:8,color:'var(--text3)',padding:24}}>
+                            <div style={{display:'flex',alignItems:'center',gap:10,color:'#64748b',padding:'32px 0'}}>
                                 <ApSpinner /> Loading clients…
                             </div>
                         ) : clients.length === 0 ? (
@@ -7811,15 +8230,25 @@ const AdminPanel = ({ userEmail, onSignOut }) => {
                                 <div className="ap-empty">
                                     <div className="ap-empty-icon">👥</div>
                                     <div className="ap-empty-title">No clients yet</div>
-                                    <div style={{fontSize:13,color:'var(--text3)',marginBottom:16}}>Get started by onboarding your first client.</div>
+                                    <div className="ap-empty-sub">Get started by onboarding your first client workspace.</div>
                                     <button className="ap-btn ap-btn-primary" onClick={() => setShowOnboard(true)}>+ Onboard First Client</button>
                                 </div>
                             </div>
                         ) : (
                             <div className="ap-card">
-                                {clients.map(client => {
-                                    const services = (client.allowedServices || '').split(',').filter(Boolean);
-                                    const clouds   = (client.allowedClouds   || '').split(',').filter(Boolean);
+                                {/* Table header */}
+                                <div className="ap-card-header">
+                                    <div className="ap-card-header-cell">Client</div>
+                                    <div className="ap-card-header-cell">Created</div>
+                                    <div className="ap-card-header-cell">Services & Clouds</div>
+                                    <div className="ap-card-header-cell" style={{textAlign:'right'}}>Actions</div>
+                                </div>
+
+                                {filtered.length === 0 ? (
+                                    <div style={{padding:'24px',textAlign:'center',color:'#94a3b8',fontSize:13}}>No clients match "{search}"</div>
+                                ) : filtered.map(client => {
+                                    const services = (client.allowedServices||'').split(',').filter(Boolean);
+                                    const clouds   = (client.allowedClouds||'').split(',').filter(Boolean);
                                     const isOpen        = expandedSlug === client.slug;
                                     const isLoadingData = clientDataLoading[client.slug];
                                     const data          = clientData[client.slug];
@@ -7827,54 +8256,80 @@ const AdminPanel = ({ userEmail, onSignOut }) => {
                                     return (
                                         <div key={client.slug}>
                                             <div className="ap-client-row">
-                                                <div className="ap-client-icon">🏢</div>
-                                                <div className="ap-client-info">
-                                                    <div className="ap-client-name">{client.companyName}</div>
-                                                    <div className="ap-client-meta">/{client.slug} · Created {(client.createdAt||'').slice(0,10)}</div>
-                                                    <div className="ap-tags">
-                                                        {clouds.map(c   => <ApCloudTag   key={c} id={c} />)}
-                                                        {services.map(s => <ApServiceTag key={s} id={s} />)}
+                                                {/* Col 1 — name */}
+                                                <div className="ap-client-left">
+                                                    <div className="ap-client-avatar">🏢</div>
+                                                    <div>
+                                                        <div className="ap-client-name">{client.companyName}</div>
+                                                        <div className="ap-client-slug">/{client.slug}</div>
                                                     </div>
                                                 </div>
-                                                <div className="ap-actions">
-                                                    <button className="ap-btn ap-btn-primary ap-btn-sm" onClick={() => toggleExpand(client)}>
-                                                        {isOpen ? '▲ Hide' : '👁 View'}
+
+                                                {/* Col 2 — date */}
+                                                <div className="ap-client-date">{(client.createdAt||'').slice(0,10)}</div>
+
+                                                {/* Col 3 — tags */}
+                                                <div className="ap-tags">
+                                                    {clouds.map(c   => <ApCloudTag   key={c} id={c} />)}
+                                                    {services.map(s => <ApServiceTag key={s} id={s} />)}
+                                                </div>
+
+                                                {/* Col 4 — actions */}
+                                                <div className="ap-row-actions">
+                                                    <button
+                                                        className={`ap-btn ap-btn-sm ${isOpen ? 'ap-btn-ghost' : 'ap-btn-primary'}`}
+                                                        onClick={() => toggleExpand(client)}
+                                                        title={isOpen ? 'Collapse' : 'View details'}>
+                                                        {isOpen
+                                                            ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="18 15 12 9 6 15"/></svg>
+                                                            : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                                        }
                                                     </button>
-                                                    <button className="ap-btn ap-btn-ghost ap-btn-sm" onClick={() => setEditingClient(client)}>
-                                                        ✏ Edit
+                                                    <button className="ap-btn ap-btn-ghost ap-btn-sm" onClick={() => setEditingClient(client)} title="Edit">
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                                        </svg>
                                                     </button>
-                                                    <button className="ap-btn ap-btn-danger ap-btn-sm" onClick={() => handleDelete(client.slug)}>
-                                                        🗑 Delete
+                                                    <button className="ap-btn ap-btn-danger ap-btn-sm" onClick={() => handleDelete(client.slug)} title="Delete">
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                                                            <polyline points="3 6 5 6 21 6"/>
+                                                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                                                            <path d="M10 11v6M14 11v6"/>
+                                                        </svg>
                                                     </button>
                                                 </div>
                                             </div>
 
+                                            {/* Expanded detail panel */}
                                             {isOpen && (
-                                                <div className="ap-view-panel">
+                                                <div className="ap-expand-panel">
                                                     {isLoadingData ? (
-                                                        <div style={{display:'flex',alignItems:'center',gap:8,color:'var(--text3)'}}>
-                                                            <ApSpinner /> Loading client data…
+                                                        <div style={{display:'flex',alignItems:'center',gap:8,color:'#64748b'}}>
+                                                            <ApSpinner /> Loading data…
                                                         </div>
                                                     ) : (
                                                         <>
-                                                            <div className="ap-view-section-title">👤 Users ({(data?.users||[]).length})</div>
-                                                            {(data?.users||[]).length === 0 ? (
-                                                                <div style={{fontSize:13,color:'var(--text3)',marginBottom:16}}>No users registered yet.</div>
-                                                            ) : (
-                                                                <div className="ap-user-chips">
-                                                                    {(data?.users||[]).map(email => (
-                                                                        <span key={email} className="ap-user-chip">{email}</span>
-                                                                    ))}
-                                                                </div>
-                                                            )}
-                                                            <div className="ap-view-section-title" style={{marginTop:12}}>
-                                                                ☁ Scan Data ({(data?.scanRecords||[]).length} accounts)
+                                                            <div className="ap-expand-section-title">
+                                                                Users ({(data?.users||[]).length})
                                                             </div>
-                                                            {(data?.scanRecords||[]).length === 0 ? (
-                                                                <div style={{fontSize:13,color:'var(--text3)'}}>No scan data yet.</div>
-                                                            ) : (
-                                                                (data?.scanRecords||[]).map((rec,i) => <ApScanAccountCard key={i} rec={rec} />)
-                                                            )}
+                                                            {(data?.users||[]).length === 0
+                                                                ? <div className="ap-no-data">No users registered yet.</div>
+                                                                : (
+                                                                    <div className="ap-user-chips">
+                                                                        {(data?.users||[]).map(email => (
+                                                                            <span key={email} className="ap-user-chip">{email}</span>
+                                                                        ))}
+                                                                    </div>
+                                                                )
+                                                            }
+                                                            <div className="ap-expand-section-title" style={{marginTop:14}}>
+                                                                Scan Data ({(data?.scanRecords||[]).length} accounts)
+                                                            </div>
+                                                            {(data?.scanRecords||[]).length === 0
+                                                                ? <div className="ap-no-data">No scan data yet.</div>
+                                                                : (data?.scanRecords||[]).map((rec,i) => <ApScanAccountCard key={i} rec={rec} />)
+                                                            }
                                                         </>
                                                     )}
                                                 </div>
@@ -7887,10 +8342,9 @@ const AdminPanel = ({ userEmail, onSignOut }) => {
                     </div>
                 </div>
             </div>
-        </>
+        </div>
     );
 };
-
 // ── Root App ──────────────────────────────────────────────────────────────────
 export default function App() {
     const [page, setPage] = useState(() => {
@@ -7906,16 +8360,46 @@ export default function App() {
         return "app";
     });
     const [awsData, setAwsData] = useState(() => {
-        const email = localStorage.getItem('cloudops-userEmail');
-        if (!email) return null;
-        const saved = localStorage.getItem(`cloudops-awsData-${email}`);
-        return saved ? JSON.parse(saved) : null;
+        try {
+            const email = localStorage.getItem('cloudops-userEmail');
+            if (!email) return null;
+            // Try lastAccount key (set after each scan)
+            const lastAccount = localStorage.getItem(`cloudops-lastAccount-${email}`);
+            if (lastAccount) {
+                const saved = localStorage.getItem(`cloudops-awsData-${email}-${lastAccount}`);
+                if (saved) return JSON.parse(saved);
+            }
+            // Try accountId key (always persisted)
+            const accountId = localStorage.getItem('cloudops-accountId');
+            if (accountId) {
+                const saved = localStorage.getItem(`cloudops-awsData-${email}-${accountId}`);
+                if (saved) return JSON.parse(saved);
+            }
+            // Fall back to generic key (old format)
+            const saved = localStorage.getItem(`cloudops-awsData-${email}`);
+            return saved ? JSON.parse(saved) : null;
+        } catch { return null; }
     });
     const [scanMeta, setScanMeta] = useState(() => {
-        const email = localStorage.getItem('cloudops-userEmail');
-        if (!email) return null;
-        const saved = localStorage.getItem(`cloudops-scanMeta-${email}`);
-        return saved ? JSON.parse(saved) : null;
+        try {
+            const email = localStorage.getItem('cloudops-userEmail');
+            if (!email) return null;
+            // Try lastAccount key (set after each scan)
+            const lastAccount = localStorage.getItem(`cloudops-lastAccount-${email}`);
+            if (lastAccount) {
+                const saved = localStorage.getItem(`cloudops-scanMeta-${email}-${lastAccount}`);
+                if (saved) return JSON.parse(saved);
+            }
+            // Try accountId key (always persisted)
+            const accountId = localStorage.getItem('cloudops-accountId');
+            if (accountId) {
+                const saved = localStorage.getItem(`cloudops-scanMeta-${email}-${accountId}`);
+                if (saved) return JSON.parse(saved);
+            }
+            // Fall back to generic key (old format)
+            const saved = localStorage.getItem(`cloudops-scanMeta-${email}`);
+            return saved ? JSON.parse(saved) : null;
+        } catch { return null; }
     });
     const [accountId, setAccountId] = useState(() => {
         return localStorage.getItem('cloudops-accountId') || "";
@@ -8575,6 +9059,33 @@ export default function App() {
         }
         setPage("app");
     };
+
+    // On refresh: if accountId is known but awsData is missing, fetch from backend DB
+    useEffect(() => {
+        if (awsData || !accountId || page !== "app") return;
+        const token = localStorage.getItem('cloudops-auth-token');
+        if (!token) return;
+        fetch(`${BACKEND}/api/scan-data/${encodeURIComponent(accountId)}`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        })
+            .then(r => r.ok ? r.json() : null)
+            .then(json => {
+                if (json?.found && json.scanData) {
+                    setAwsData(json.scanData);
+                    if (json.scanMeta) setScanMeta(json.scanMeta);
+                    // Cache to localStorage for next refresh
+                    const email = localStorage.getItem('cloudops-userEmail');
+                    if (email) {
+                        try {
+                            localStorage.setItem(`cloudops-awsData-${email}-${accountId}`, JSON.stringify(json.scanData));
+                            localStorage.setItem(`cloudops-scanMeta-${email}-${accountId}`, JSON.stringify(json.scanMeta));
+                            localStorage.setItem(`cloudops-lastAccount-${email}`, accountId);
+                        } catch {}
+                    }
+                }
+            })
+            .catch(() => {});
+    }, [accountId, page]); // eslint-disable-line
 
     return (
         <>
